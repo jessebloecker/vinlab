@@ -17,7 +17,7 @@ class BSplineController():
         min max velocity and acceleration, centroid, path length, path duration
         """
         self.control_pts = np.array([[0,0,0],  #idk where this will be set by the user yet
-                 
+                                [0,0,0],
                                 [3,0,0],
                                 [16,7,0],
                                 [12,14,0],
@@ -25,6 +25,7 @@ class BSplineController():
                                 [0,20,0],
                                 [-10,17,0],
                                 [-3,8,0],
+                                [-2,0,0],
                                 [-2,0,0]]).astype(np.float64)
         self.control_pts_orig = self.control_pts.copy()
         self.selection = 0 #index of the currently selected control point
@@ -174,9 +175,9 @@ class BSplineController():
 
         #could just loop to the end to handle any number of derivatives. prob gonna have to do this
         all_basis = core.basis_vectors
-        pos_basis = core.basis_vectors[0,:,:] #nx4
-        vel_basis = core.basis_vectors[1,:,:] #nx4
-        acc_basis = core.basis_vectors[2,:,:] #nx4
+        pos_basis = core.basis_vectors[0,:,:] #nxk
+        vel_basis = core.basis_vectors[1,:,:] #nxk
+        acc_basis = core.basis_vectors[2,:,:] #nxk
 
         pos_bspline = np.zeros((N,3)) 
         vel_bspline = np.zeros((N,3))
@@ -187,7 +188,7 @@ class BSplineController():
             pts = control_pts[i:i+k+1,:] #sliding window of (k+1) control points
             lower = i*n
             upper = (i+1)*n
-            pos_bspline[lower:upper,:] = np.linalg.multi_dot((pos_basis,M,pts)) #(n x k)*(k x k)*(k x 3)=(n x 3), where k = k+1
+            pos_bspline[lower:upper,:] = np.linalg.multi_dot((pos_basis,M,pts)) #(n x k1)*(k1 x k1)*(k1 x 3)=(n x 3), where k1 = order+1
             vel_bspline[lower:upper,:] = np.linalg.multi_dot((vel_basis,M,pts))
             acc_bspline[lower:upper,:] = np.linalg.multi_dot((acc_basis,M,pts))
 
