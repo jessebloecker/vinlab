@@ -5,6 +5,8 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /Grid1
+        - /TF1
       Splitter Ratio: 0.5
     Tree Height: 781
   - Class: rviz_common/Selection
@@ -31,7 +33,7 @@ Visualization Manager:
     - Alpha: 0.5
       Cell Size: 1
       Class: rviz_default_plugins/Grid
-      Color: 160; 160; 164
+      Color: 94; 92; 100
       Enabled: true
       Line Style:
         Line Width: 0.029999999329447746
@@ -43,7 +45,7 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 10
+      Plane Cell Count: 1000
       Reference Frame: <Fixed Frame>
       Value: true
     - Class: rviz_default_plugins/TF
@@ -51,20 +53,26 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
+        global:
+          Value: true
+        imu:
+          Value: true
       Marker Scale: 4
       Name: TF
-      Show Arrows: true
+      Show Arrows: false
       Show Axes: true
       Show Names: true
       Tree:
-        {}
+        global:
+          imu:
+            {}
       Update Interval: 0
       Value: true
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
       Name: CONTROL POINTS
       Namespaces:
-        "": true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -98,7 +106,7 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /bspline_node/pos
+        Value: /trajectory_player/pos
       Value: true
     - Alpha: 1
       Buffer Length: 1
@@ -126,13 +134,13 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /bspline_node/vel
+        Value: /trajectory_player/vel
       Value: true
     - Alpha: 1
       Buffer Length: 1
       Class: rviz_default_plugins/Path
       Color: 0; 0; 255
-      Enabled: false
+      Enabled: true
       Head Diameter: 0.30000001192092896
       Head Length: 0.20000000298023224
       Length: 0.30000001192092896
@@ -154,19 +162,21 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /bspline_node/acc
-      Value: false
+        Value: /trajectory_player/acc
+      Value: true
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        "": true
+        control_pts: true
+        eval: true
+        knots: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /path_eval_node/markers
+        Value: /trajectory_player/control_pts
       Value: true
   Enabled: true
   Global Options:
@@ -214,7 +224,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 24.864482879638672
+      Distance: 19.24915313720703
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -229,10 +239,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6147962212562561
+      Pitch: 0.809796929359436
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 4.949917316436768
+      Yaw: 4.34857177734375
     Saved: ~
 Window Geometry:
   Displays:
