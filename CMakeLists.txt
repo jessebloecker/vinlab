@@ -47,7 +47,7 @@ ament_python_install_package(${PROJECT_NAME})
 
 # Install Python executables
 install(PROGRAMS
- src/bspline_node.py
+ src/trajectory_player.py
  DESTINATION lib/${PROJECT_NAME}
 )
 
