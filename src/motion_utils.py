@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import numpy as np
 from scipy.linalg import block_diag
 from scipy.spatial.transform import Rotation
@@ -11,12 +12,14 @@ def unit(vec):
         unit vector or nx3 array of unit vectors
     """
     if not np.any(vec):
-        raise ValueError('zero vector cannot be normalized')
-    if vec.ndim==1:
+        raise ValueError('zero vector cannot be normalized') 
+    if vec.ndim == 1:
         return vec/np.linalg.norm(vec)
-    elif vec.ndim==2 and vec.shape[1]==3:
-        norms=np.linalg.norm(vec,axis=1)
-        return (vec.T/norms).T
+    elif vec.ndim == 2 and vec.shape[1]==3:
+        norms = np.linalg.norm(vec,axis=1)
+        out = (vec.T/norms).T  #causes RuntimeWarning: invalid value encountered in true_divide
+        return np.nan_to_num(out) #replace NaNs with zeros TODO: find a better way to handle this
+
     else:
         raise ValueError('\'vec\' must be a 1d array, or a 2d array with shape (n,3)')
     
@@ -69,16 +72,16 @@ def rotation_align_axis(axis,vec,grounded_axis=None,flip=False):
     positive_seq = bool(axis+grounded_axis in ['xy','yz','zx'])
     a3 = (1.0 if positive_seq else -1.0)*np.cross(a1,a2)
 
-    # print(axis_num,grounded_num,last_num)
-    R = np.zeros((3,3,n))
-    R[:,axis_num,:] = a1.T
-    R[:,grounded_num,:] = a2.T
-    R[:,last_num,:] = a3.T
+
+    R = np.zeros((n,3,3))
+    R[:,:,axis_num] = a1
+    R[:,:,grounded_num] = a2
+    R[:,:,last_num] = a3
 
     return np.squeeze(R)
     
 
-def rot_seq_to_angvel(seq,dt,frame='moving'):
+def angvel_from_rotations(rot,dt):
     """
     compute angular velocity from a sequence of global rotation matrices at uniform time intervals
     params:
@@ -86,32 +89,101 @@ def rot_seq_to_angvel(seq,dt,frame='moving'):
         dt: float, time step between each rotation matrix
     returns:
         angvel: 2d array of shape (n,3) where angvel[i,:] is the angular velocity at time i expressed in the moving frame
+    
+    Example
+     n = 10  --->  k = 5
+     R = [0,1,2,3,4,5,6,7,8,9]
+    
+       odd        1 | 3 | 5 | 7 | (9)       relative rotation at each even index comes from
+                    |   |   |   |          the product of the two neighboring (odd) rotations, and vice versa   
+       even   (0) | 2 | 4 | 6 | 8           endpoints are handled separately at the end
+                  |   |   |   |             
+                  1 | 3 | 5 | 7 | (9)
+
+
+    relative rotations computed by creating a block diagonal matrix 
+    and a corresponding stacked matrix, once for the odd indices, and once for the even indices:
+
+    -----------------------------------------------------------------------------       
+                       T
+    |R1               |     |   R3   |       |  rel2     |    
+    |   R3            |     |   R5   |       |  rel4     |
+    |     R5          |  *  |   R7   |    =  |  rel6     | 
+    |       ...       |     |  ...   |       |   ...     | 
+    |           R(n-3)|     |  R(n-1)|       |  rel(n-2) | 
+
+    block(R_o)           *  stack(R_o)    =    rel_e        <----rel_e = relative rotations at even indices
+      from 0 to k-1         from 1 to k      shape(3*k,3)
+    
+    -----------------------------------------------------------------------------
+    
+    
+                       T
+    |R0               |     |   R2   |       |  rel1     |    
+    |   R2            |     |   R4   |       |  rel3     |
+    |     R4          |  *  |   R6   |    =  |  rel5     | 
+    |       ...       |     |  ...   |       | ...       | 
+    |           R(n-4)|     |  R(n-2)|       |  rel(n-3) | 
+
+    block(R_e)           *    stack(R_e)  =    rel_o        <----rel_o = relative rotations at odd indices
+      from 0 to k-1         from 1 to k       shape(3*k,3)
+    
+    
     """
-    # n=len(seq)
-    # seq_block = block_diag(*seq) #3n x 3n
-    # forward_seq = np.copy(seq)
-    # backward_seq = np.copy(seq)
-    # forward_seq[:-1,:,:] = seq[1:,:,:] # remove first entry, duplicate last entry
-    # backward_seq[1:,:,:] = seq[:-1,:,:] # remove last entry, duplicate first entry
-   
-    # forward_2d = forward_seq.reshape(3*n,3) #3n x 3
-    # backward_2d = backward_seq.reshape(3*n,3) #3n x 3
-    
-    # forward_rel_seq = (seq_block.T@forward_2d.reshape(n,3,3)) #3n x 3n remove first duplicate last
-    # backward_rel_seq = (seq_block.T@backward_2d.reshape(n,3,3)) #3n x 3n remove last duplicate first
-    
-    # rotvecs1 = Rotation.from_matrix(forward_rel_seq).as_rotvec()
-    # rotvecs2 = Rotation.from_matrix(backward_rel_seq).as_rotvec()
-    
-    # angles1 = np.linalg.norm(rotvecs1,axis=1)
-    # angles2 = np.linalg.norm(rotvecs2, axis=1)
+    R = rot
+    n = len(R)
+    rotvec = np.zeros((n,3)) #to hold relative rotations represented as scaled axes
 
-    # angvels = (1/(2*dt))*(angles1+angles2) #scalar
-    # axes = unit((unit(rotvecs1)+unit(rotvecs2))/2)
+    angvel = np.zeros((n,3))
+    body_angvel = np.zeros((n,3))
 
-    # angvel_vecs = (axes.T*angvels).T
-   
-    # return angvel_vecs
+    n_is_odd = bool(n%2)
+    if n_is_odd: #store last rotation separately to handle later, make n even
+        R_last = R[n-1] 
+        print('n is odd:',n)
+        n = n-1  
+        print('n is now even:',n)
+
+    k = int(n/2)  #half the number of rotations 
+    R_e = R[0::2]  #rotations at even indices - shape (k,3,3))
+    R_o = R[1::2]   #rotations at odd indices - shape (k,3,3))
+    block_e = block_diag(*R_e[0:k-1])
+    block_o = block_diag(*R_o[0:k-1])
+    stack_e = stack_2d(R_e[1:k])
+    stack_o = stack_2d(R_o[1:k])
+    rel_e = (block_o.T@stack_o).reshape(k-1,3,3)  
+    rel_o = (block_e.T@stack_e).reshape(k-1,3,3)
+    rotvec_e = Rotation.from_matrix(rel_e).as_rotvec()
+    rotvec_o = Rotation.from_matrix(rel_o).as_rotvec()
+    rotvec[1:n-1][0::2] = rotvec_o
+    rotvec[1:n-1][1::2] = rotvec_e
+
+    # now handle the endpoints
+    if n_is_odd:
+        n+=1
+        rel_second_last = R[n-3].T@R[n-1]
+        rotvec[n-2] = Rotation.from_matrix(rel_second_last).as_rotvec()
+    rel_first = R[0].T@R[1]
+    rel_last = R[n-2].T@R[n-1]
+    rotvec[0] = Rotation.from_matrix(rel_first).as_rotvec()
+    rotvec[n-1] = Rotation.from_matrix(rel_last).as_rotvec()
+
+    body_angvel[0] = (1/dt)*rotvec[0]
+    body_angvel[1:n-1,:] = (1/(2*dt))*rotvec[1:n-1,:]
+    body_angvel[n-1] = (1/dt)*rotvec[n-1]
+    angvel = (block_diag(*R)@body_angvel.flatten()).reshape(n,3)
+
+    return angvel, body_angvel
+
+def stack_2d(arr):
+    """
+    arr: 3d array(n,m,p)
+    returns: 2d array(n*m,p)
+    """
+    if not len(arr.shape)==3:
+        raise ValueError('array must be a 3d, got shape {}'.format(arr.shape))
+    n, m, p = arr.shape
+    return arr.reshape(n*m,p)
 
 
 def repeat_3d(arr,n):
@@ -129,13 +201,44 @@ def repeat_3d(arr,n):
         print('\'arr\' must be a 2d array')
         raise
 
-
-def centroid(arr):
+def in_frame(rot,vec):
     """
-    compute the centroid of a set of position points
+    rotate each vector in 'vec' by the inverse of corresponding rotation in 'rot'
     params:
-        arr: 2d array of position points with shape (n,3)
+        vec: array (n,3)
+        rot: array (n,3,3) 
     returns:
-        centroid position as 1d array of shape (3,)
+        vec_rotated: array (n,3) where vec_rotated[i,:] = rot[i,:,:].T@vec[i,:]
     """
-    return np.mean(arr,axis=0)
+    if not rot.shape[0] == vec.shape[0]:
+        raise ValueError('\'rot\' and \'vec\' must have the same number of rows')
+    
+    R = block_diag(*rot)
+    vec_rotated = (R.T@vec.flatten()).reshape(vec.shape)
+    return vec_rotated
+
+
+
+def as_scipy_rotation(rot):
+    """
+    return scipy Rotation object based on dimensions of given the input
+    return rotation object
+
+     if given: 4x1 vector, assume quaternion [x,y,z,w]
+            3x3 matrix, assume rotation matrix
+            3x1 vector, assume roll-pitch-yaw = (x,y,z) 
+                                with convention x --> y --> z in fixed frame
+                                (equivalent to z --> y --> x in body frame)
+            1x1 scalar, assume yaw in radians
+"""
+    N = len(rot)
+    dim = rot.shape
+    if dim == (4,) or dim == (N,4):
+        out = Rotation.from_quat(rot)
+    elif dim == (3,3) or dim == (N,3,3):
+        out = Rotation.from_matrix(rot)
+    elif dim == (3,) or dim == (N,3):
+        out = Rotation.from_euler('xyz', rot)
+    else:
+        raise ValueError('Invalid rotation input with shape {}'.format(dim))
+    return out
