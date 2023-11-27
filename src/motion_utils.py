@@ -128,7 +128,6 @@ def angvel_from_rotations(rot,dt):
     block(R_e)           *    stack(R_e)  =    rel_o        <----rel_o = relative rotations at odd indices
       from 0 to k-1         from 1 to k       shape(3*k,3)
     
-    
     """
     R = rot
     n = len(R)
@@ -139,9 +138,7 @@ def angvel_from_rotations(rot,dt):
     n_is_odd = bool(n%2)
     if n_is_odd: #store last rotation separately to handle later, make n even
         R_last = R[n-1] 
-        print('n is odd:',n)
         n = n-1  
-        print('n is now even:',n)
 
     k = int(n/2)  #half the number of rotations 
     R_e = R[0::2]  #rotations at even indices - shape (k,3,3))
