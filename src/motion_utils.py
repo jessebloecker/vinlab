@@ -133,7 +133,6 @@ def angvel_from_rotations(rot,dt):
     R = rot
     n = len(R)
     rotvec = np.zeros((n,3)) #to hold relative rotations represented as scaled axes
-
     angvel = np.zeros((n,3))
     body_angvel = np.zeros((n,3))
 
@@ -147,24 +146,26 @@ def angvel_from_rotations(rot,dt):
     k = int(n/2)  #half the number of rotations 
     R_e = R[0::2]  #rotations at even indices - shape (k,3,3))
     R_o = R[1::2]   #rotations at odd indices - shape (k,3,3))
-    block_e = block_diag(*R_e[0:k-1])
-    block_o = block_diag(*R_o[0:k-1])
-    stack_e = stack_2d(R_e[1:k])
-    stack_o = stack_2d(R_o[1:k])
-    rel_e = (block_o.T@stack_o).reshape(k-1,3,3)  
-    rel_o = (block_e.T@stack_e).reshape(k-1,3,3)
-    rotvec_e = Rotation.from_matrix(rel_e).as_rotvec()
-    rotvec_o = Rotation.from_matrix(rel_o).as_rotvec()
-    rotvec[1:n-1][0::2] = rotvec_o
-    rotvec[1:n-1][1::2] = rotvec_e
+
+    i = 0
+    for R_half in (R_e,R_o): 
+        block = block_diag(*R_half[0:k-1])
+        stack = stack_2d(R_half[1:k])
+        rel = (block.T@stack).reshape(k-1,3,3)
+
+        # 'interlace' the relative rotations back into one (n,3) array
+        rotvec[1:n-1][i::2] = Rotation.from_matrix(rel).as_rotvec() 
+        i+=1
 
     # now handle the endpoints
     if n_is_odd:
         n+=1
-        rel_second_last = R[n-3].T@R[n-1]
-        rotvec[n-2] = Rotation.from_matrix(rel_second_last).as_rotvec()
-    rel_first = R[0].T@R[1]
-    rel_last = R[n-2].T@R[n-1]
+        # the previously last rotation is now the second to last rotation
+        # compute relative rotation at n-2 exactly as above
+        rotvec[n-2] = Rotation.from_matrix(R[n-3].T@R[n-1]).as_rotvec()
+
+    rel_first = R[0].T@R[1] #forward difference
+    rel_last = R[n-2].T@R[n-1] #backward difference
     rotvec[0] = Rotation.from_matrix(rel_first).as_rotvec()
     rotvec[n-1] = Rotation.from_matrix(rel_last).as_rotvec()
 
