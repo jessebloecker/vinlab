@@ -1,166 +1,179 @@
 #!/usr/bin/env python 
+import sys
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node   import Node
 import numpy as np
 import tf2_ros
-from std_msgs.msg import Float32
-from builtin_interfaces.msg import Time
-from  nav_msgs.msg          import Odometry, Path
-from  geometry_msgs.msg     import PolygonStamped, Point32, PoseStamped
-from std_srvs.srv           import Trigger
-from visualization_msgs.msg import Marker, MarkerArray
-from scipy.spatial.transform import Rotation
-from bspline_controller import BSplineController
+from  nav_msgs.msg    import Path
+from visualization_msgs.msg import  MarkerArray
 import ros_message_helper as rmh
-import motion_utils as utils
-import threading
+from functools import partial
+from trajectory import Trajectory
+import yaml
 
-
+"""
+Load trajectory from yaml config file
+Loop through the trajectory and publish transforms, paths, and other markers
+"""
 class TrajectoryPlayer(Node):
-    def __init__(self):
+    def __init__(self,config):
         super().__init__('trajectory_player')
-
-        self.controller = BSplineController()
-        self.controller.keyboard_start()
-        # self.controller_keyboard_start()
-        vel = self.controller.vel_bspline
-        self.rotations = utils.rotation_align_axis('z',vel,grounded_axis='x',flip=False)
-
-    
-        display_rate = 1.0# display 'framerate' at which to publish the visualization
-        update_rate = 30.0 # rate at which to update the transform to the moving frame
-        callback_group_1 = MutuallyExclusiveCallbackGroup()
-        callback_group_2 = MutuallyExclusiveCallbackGroup()
-        self.create_timer(1.0/update_rate, self.publish_transforms, callback_group=callback_group_1) 
-        self.create_timer(1.0/display_rate, self.publish_paths, callback_group=callback_group_2)
-        self.create_timer(1.0/display_rate, self.publish_markers, callback_group=callback_group_2)
-
-        # move marker publishers to bspline_visualizer.py
-        self.pub_markers = self.create_publisher(MarkerArray,'~/control_pts', 10)
-        self.pub_pos = self.create_publisher(Path,'~/pos', 10)
-        self.pub_vel = self.create_publisher(Path,'~/vel', 10)
-        self.pub_acc = self.create_publisher(Path,'~/acc', 10)
-        self.pub_markers = self.create_publisher(MarkerArray,'~/control_pts', 10)
-        self.zero_rotation = np.array([0.0,0.0,0.0,1.0])
-        self.ready = True
-        self.initial_time = self.get_clock().now().nanoseconds
-        self.t0 = self.initial_time
-        self.t = self.initial_time
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
-
-
-    def publish_transforms(self):
-        """
-        Lookup the position and all derivative values at the current time.
-        Publish the transform to the moving frame
-        When the end of the spline is reached, loop back to the beginning.
-        """
-        now = self.get_clock().now()
-        pos = self.controller.pos_bspline
-        vel = self.controller.vel_bspline
-        rot = utils.rotation_align_axis('z',vel,grounded_axis='x',flip=False)
-        dur_nanosec = (len(self.controller.control_pts)-self.controller.core.order)*1e9 #total duration of the bslpline in nanoseconds
-        scale = self.controller.timescale
-
-        n = len(pos)
-        T = scale*dur_nanosec
-        t0 = self.t0
-
-        t = self.get_clock().now().nanoseconds-t0
-        if t>=T: #reset
-            self.t0 = self.get_clock().now().nanoseconds
-            t = 0
+        self.trajectory = self.load_trajectory(config)
+        p,s = self.init_communication()
+        self._publishers = p
+        self._subscribers = s
+        self._messages = self.get_messages()
+        self.playing = True
+        self.start_timers()
         
-        index = int((t/T)*n)
-        p=pos[index]
-        R = rot[:,:,index]
-
-        # v=vel[index]*(1.0/scale)
-        # a=acc[index]*(1.0/scale)**2
-        # self.get_logger().info('t: {:.02f}  pos: {:.02f},{:.02f},{:.02f}  vel: {:.02f}  acc: {:.02f}'.format(
-        #       t*1e-9,*p,np.linalg.norm(v),np.linalg.norm(a)))
-        # print('R',R)
-
-        msg_tf = rmh.as_transformstamped_msg(now.to_msg(),'global','imu', p, R)
-        self.tf_broadcaster.sendTransform(msg_tf)
-        self.t = t
-
-    def publish_markers(self):
+    def load_trajectory(self,config_file):
+        # parse yaml config
+        config = yaml.load(open(config_file),Loader=yaml.FullLoader)
+        _trajectory = config['trajectory']
+        return Trajectory.config(_trajectory)
+    
+    def init_communication(self):
         """
-        Publish markers for each control point
+        Initialize publishers, subscribers, 
         """
-        markers = MarkerArray()
-        for i in range(len(self.controller.control_pts)):
-            m = rmh.as_marker_msg(rmh.as_stamp(0.0),'global',self.controller.control_pts[i,:],self.zero_rotation)
-            if i==self.controller.selection:
-                # m.color = rmh.as_color('green')
-                m.color.a = 1.0
-                m.color.r = 0.0
-                m.color.g = 1.0
-                m.color.b = 1.0
-            m.ns = 'control_pts'
-            m.id = i
-            markers.markers.append(m)
-        # self.pub_markers.publish(markers)
+        traj = self.trajectory
+        global_frame = traj.frame
+        body_frame = traj.body_frame
+        now = self.get_clock().now().nanoseconds
+        
+        publishers = {}
+        subscribers = {}
+        publishers['index_markers'] = self.create_publisher(MarkerArray,'~/index_markers', 10)
+        publishers['transforms'] = tf2_ros.TransformBroadcaster(self)
+        publishers['paths'] = []
        
-        # publish the knot locations 
-        pos = self.controller.pos_bspline
-        num_spans = len(self.controller.control_pts)-self.controller.core.order
-        num_knots = num_spans+1
-        knot_indices = np.linspace(0,len(pos)-1,num=num_knots).astype(int)
-        # print('knots',knot_indices)
-        for i in knot_indices:
-            m = rmh.as_marker_msg(rmh.as_stamp(0.0),'global',pos[i],self.zero_rotation)
-            m.color.a = 1.0
-            m.color.r = 1.0
-            m.color.g = 1.0
-            m.color.b = 1.0
-            m.id = int(i)
-            m.ns = 'knots'
-            markers.markers.append(m)
+        for i in ['pos','vel','acc']:
+            publishers['paths'].append(self.create_publisher(Path,'~/'+traj.name+'/'+i,10))
+            subscribers[i] = self.create_subscription(Path,'/input/'+i , partial(self.update_trajectory, i),10)
 
-        centroid = np.mean(pos,axis=0)
-        # centroid = np.mean(self.controller.control_pts,axis=0)
-        m = rmh.as_marker_msg(rmh.as_stamp(0.0),'global',centroid,self.zero_rotation)
-        m.color.a = 1.0
-        m.color.r = 1.0
-        m.color.g = 0.0
-        m.color.b = 1.0
-        m.id = 0
-        m.ns = 'eval'
-        markers.markers.append(m)
-        self.pub_markers.publish(markers)
+        return publishers, subscribers
+    
+    def get_messages(self):
+        """
+        Convert trajectory to Path messages, list of transforms, and list of marker arrays
+        corresponding to each time step in the trajectory
+        """
+        messages = {'paths':[Path(),Path(),Path()],'index_markers':[],'transforms':[]}
+        messages['paths'][0].header.frame_id = self.trajectory.frame
+        messages['paths'][1].header.frame_id = self.trajectory.frame
+        messages['paths'][2].header.frame_id = self.trajectory.frame
+        
+        traj = self.trajectory
+        global_frame = traj.frame
+        body_frame = traj.body_frame
+
+        no_rot = np.array([0.,0.,0.,1.])
+        pva = np.zeros((3,3))
+
+        for i in range(traj.n):
+            t = traj.t[i]
+            p = traj.translation.pos[i]
+            v = traj.translation.vel[i]
+            a = traj.translation.acc[i]
+            q = traj.rotation.q[i]
+            pva[:,0], pva[:,1], pva[:,2] = p,v,a
+
+
+            messages['index_markers'].append(rmh.as_markerarray_msg(t, global_frame, pva.T))
+            messages['transforms'].append(rmh.as_transformstamped_msg(t, global_frame, body_frame, p, q))
+            messages['paths'][0].poses.append(rmh.as_posestamped_msg(t, global_frame, p, q))
+            messages['paths'][1].poses.append(rmh.as_posestamped_msg(t, global_frame, v, no_rot))
+            messages['paths'][2].poses.append(rmh.as_posestamped_msg(t, global_frame, a, no_rot))
+        return messages
+
+
+    def start_timers(self, slow_rate=1.0, fast_rate=30.0):
+
+        self.t0 = self.get_clock().now().nanoseconds
+
+        g1 = MutuallyExclusiveCallbackGroup()
+        g2 = MutuallyExclusiveCallbackGroup()
+        self.create_timer(1.0/fast_rate, self.index_select, callback_group=g1) 
+        self.create_timer(1.0/fast_rate, self.broadcast_transform, callback_group=g1) 
+        self.create_timer(1.0/fast_rate, self.publish_index_markers, callback_group=g1) 
+        self.create_timer(1.0/slow_rate, self.publish_paths, callback_group=g2)
+        self.create_timer(1.0/slow_rate, self.publish_index_markers, callback_group=g2)
+    
+    def update_trajectory(self, msg, name):
+        """
+        Subscriber callback:
+        replace current Path message with received Path message
+        then update the trajectory, recompute rotations
+
+        TODO: handle rotation part
+        """
+        if name == 'pos':
+            self._messages['pos'] = msg
+            self.trajectory.translation.pos = rmh.as_ndarray(msg)
+        elif name == 'vel':
+            self._messages['vel'] = msg
+            self.trajectory.translation.vel = rmh.as_ndarray(msg)
+        elif name == 'acc':
+            self._messages['acc'] = msg
+            self.trajectory.translation.acc = rmh.as_ndarray(msg)
+        else:
+            raise ValueError('Invalid name: {}'.format(name))
+        
+    def index_select(self):
+        """
+        select the current index in trajectory based on time loop, 
+        or based on slider position in gui (not implemented yet)
+        """
+        if self.playing:
+            traj = self.trajectory
+            T = traj.dur*1e9 #duration in nanoseconds
+            t0 = self.t0 #reset every 'T' nanoseconds
+
+            t = self.get_clock().now().nanoseconds-t0
+            if t>=T: 
+                self.t0 = self.get_clock().now().nanoseconds 
+                t = 0
+
+            n = traj.n
+            i = int((t/T)*n) #index in trajectory
+            self.i = i
+        else:
+            pass
+
+    def broadcast_transform(self):
+        i = self.i
+        pub = self._publishers['transforms']
+        msg = self._messages['transforms'][i]
+        now = self.get_clock().now()
+        msg.header.stamp = now.to_msg()
+        pub.sendTransform(msg)
 
     def publish_paths(self):
-
-        pos = self.controller.pos_bspline
-        vel = self.controller.vel_bspline
-        acc = self.controller.acc_bspline
-        if pos is not None:
-            pos_path = self.as_path_msg(rmh.as_stamp(0.0),'global',self.controller.pos_bspline) #TODO: cython
-            vel_path = self.as_path_msg(rmh.as_stamp(0.0),'global',self.controller.vel_bspline)
-            acc_path = self.as_path_msg(rmh.as_stamp(0.0),'global',self.controller.acc_bspline)
-
-            self.pub_pos.publish(pos_path)
-            self.pub_vel.publish(vel_path)
-            self.pub_acc.publish(acc_path)
-        else:
-            print('pos is none')
+        """
+        Publish all of the Path messages 
+        """
+        pub = self._publishers['paths']
+        msgs = self._messages['paths']
         
-    def as_path_msg(self,stamp,frame_id,poses):
-        p = Path()
-        p.header.stamp=stamp
-        p.header.frame_id = frame_id
-        # p.poses=[as_posestamped_msg(as_stamp(0.0),'global',poses[i,:],self.zero_rotation) for i in range(len(poses))]
-        p.poses=[rmh.as_posestamped_msg(rmh.as_stamp(0.0),'global',poses[i,:],self.zero_rotation) for i in range(len(poses))]
-        return p
+        for j in range(3):
+            pub[j].publish(msgs[j])
+
+    def publish_index_markers(self):
+        i = self.i
+        pub = self._publishers['index_markers']
+        msg = self._messages['index_markers'][i]
+        pub.publish(msg)
     
 if __name__ == '__main__':
     rclpy.init()
     executor = MultiThreadedExecutor()
-    t = TrajectoryPlayer()
+    if len(sys.argv) < 2:
+        print('provide config file \n\n usage: ros2 run motion_tools trajectory_player.py <config_file>')
+        exit() 
+    config=sys.argv[1]
+    t = TrajectoryPlayer(config)
     executor.add_node(t)
     executor.spin()
-    
+
