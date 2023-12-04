@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 from std_msgs.msg import Float32
 from builtin_interfaces.msg import Time
 from std_msgs.msg           import *
@@ -9,62 +8,63 @@ from geometry_msgs.msg      import *
 from visualization_msgs.msg import *
 import numpy as np
 from scipy.spatial.transform import Rotation
+import motion_utils as utils
 
 
 """
 Convenience functions to help fill ROS2 messages fields
-
-For all rotations, if given: 4x1 vector, assume quaternion [w,x,y,z]
-                             3x3 matrix, assume rotation matrix
-                             3x1 vector, assume roll-pitch-yaw = (x,y,z) 
-                                                with convention x --> y --> z in fixed frame
-                                                 (equivalent to z --> y --> x in body frame)
-                             1x1 scalar, assume yaw in radians
 """
 
-
-def as_header(stamp,frame_id='global'):
+def as_header(stamp,frame_id):
     h = Header()
-    h.stamp = stamp
+    h.stamp = as_stamp(stamp)
     h.frame_id = frame_id
     return h
 
-def as_marker_msg(stamp,frame_id,pos,rot):
+def as_marker_msg(stamp,frame_id,pos,*,id=0, rot=None,
+                   scale=3*[0.25], color=[1.,0.,0.,0.9], _type=Marker.SPHERE):
     m = Marker()
-    m.header.stamp= stamp
-    m.id = 0
-    m.header.frame_id= frame_id
-    m.scale.x =0.25
-    m.scale.y =0.25
-    m.scale.z =0.25
-    m.type = m.SPHERE
+    m.header.stamp = as_stamp(stamp)
+    m.id = id
+    m.header.frame_id = frame_id
+    m.type = _type
+    m.scale.x, m.scale.y, m.scale.z = scale
+    m.color.r, m.color.g, m.color.b, m.color.a = color
     m.pose.position = as_point_msg(pos)
-    m.color.r, m.color.g, m.color.b = np.array([1.0,1.0,0.0])
-    m.color.a=0.9
-    m.pose.orientation = as_quaternion_msg(np.array(rot))
+    if rot is None:
+        m.pose.orientation.w = 1.0
+    else:
+        m.pose.orientation = as_quaternion_msg(rot)
+        
+
     return m
 
-def as_path_msg(stamp,frame_id,poses):
+def as_markerarray_msg(stamp,frame_id,pos):
+    ma = MarkerArray()
+    for i in range(len(pos)):
+        m = as_marker_msg(stamp,frame_id,pos[i],id=i)
+        ma.markers.append(m)
+    return ma
+
+def as_path_msg(stamps,frame_id,pos,rot=None):
     p = Path()
-    p.header.stamp=stamp
+    p.header.stamp = as_stamp(stamps[0])
     p.header.frame_id = frame_id
-    p.poses=poses
+    if rot is None:
+        rot = np.tile([0.,0.,0.,1.],(len(pos),1))
+    p.poses = [as_posestamped_msg(stamps[i],frame_id,pos[i],rot[i]) for i in range(len(pos))]
     return p
 
 def as_point_msg(pos):
     p = Point()
-    p.x = pos[0]
-    p.y = pos[1]
-    p.z = pos[2]
+    p.x, p.y, p.z = pos
     return p
+
 def as_point32_array(arr):
-    """
-    arr: nx3 array of points
-    """
     n = len(arr)
     arr.astype(np.float32)
     p = Point32()
-    p_array =[]
+    p_array = []
     for row in range(n):
         p.x,p.y,p.z = arr[row,:] 
         p_array.append(p)
@@ -78,50 +78,66 @@ def as_pointcloud_msg(stamp, frame_id, points):
     p.points=points
     return p
 
-def as_posestamped_msg(stamp,frame_id,pos,rpy):
+def as_posestamped_msg(stamp,frame_id,pos,rot):
     p = PoseStamped()
-    p.header.stamp = stamp
+    p.header.stamp = as_stamp(stamp)
     p.header.frame_id = frame_id
-    p.pose.position.x = pos[0]
-    p.pose.position.y = pos[1]
-    p.pose.position.z = pos[2]
-    p.pose.orientation = as_quaternion_msg(rpy)
+    p.pose.position = as_point_msg(pos)
+    p.pose.orientation = as_quaternion_msg(rot)
     return p
 
 def as_quaternion_msg(rot):
-    dim = rot.shape
-    if dim == (4,) or dim == (4,1):
-        _q = rot
-    elif dim == (3,) or dim == (3,1):
-        _q = Rotation.from_euler('xyz', rot).as_quat()
-    elif dim == (3,3):
-
-      _q = Rotation.from_matrix(rot).as_quat()
-    else:
-        raise ValueError('Invalid rotation input: {} (shape {})'.format(rot,dim))
-    # _q format is x,y,z,w
+    _q = rot if rot.shape==(4,) else utils.as_scipy_rotation(rot).as_quat() 
+    # _q = utils.as_scipy_rotation(rot).as_quat() #probably no performance difference
     q = Quaternion()
-    q.x = _q[0]
-    q.y = _q[1]
-    q.z = _q[2]
-    q.w = _q[3]
+    q.x, q.y, q.z, q.w = _q
     return q
 
 def as_stamp(t):
     s = Time()
     s.sec = int(t)
-    s.nanosec = int((t-int(t))*10**9)
+    s.nanosec = int((t-int(t))*1e9)
     return s
 
-def as_transformstamped_msg(stamp,frame_id,child_frame_id,pos,rpy):
+def as_transformstamped_msg(stamp,frame_id,child_frame_id,pos,rot):
     t = TransformStamped()
-    t.header.stamp = stamp
+    t.header.stamp = as_stamp(stamp)
     t.header.frame_id = frame_id
     t.child_frame_id = child_frame_id
-    t.transform.translation.x = pos[0]
-    t.transform.translation.y = pos[1]
-    t.transform.translation.z = pos[2]
-    t.transform.rotation = as_quaternion_msg(rpy)
+    t.transform.translation = as_vector3_msg(pos)
+    t.transform.rotation = as_quaternion_msg(rot)
     return t
+
+def as_vector3_msg(vec):
+    v = Vector3()
+    v.x, v.y, v.z = vec
+    return v
+
+
+def as_ndarray(msg):
+    """
+    convert a ROS message to a numpy array
+    """
+    pass
+
+
+def paths_from_trajectory(traj):
+    """
+    convert a Trajectory object to 3 Path messages: pos, vel, acc
+    only the position message contains rotations
+    """
+    t = traj.t
+    frame_id = traj.global_frame
+    pos = traj.translation.pos
+    vel = traj.translation.vel
+    acc = traj.translation.acc
+    q = traj.rotation.q
+
+    path_pos = as_path_msg(t,frame_id,pos,q)
+    path_vel = as_path_msg(t,frame_id,vel)
+    path_acc = as_path_msg(t,frame_id,acc)
+
+    return path_pos, path_vel, path_acc
+
 
 
