@@ -1,0 +1,29 @@
+trajectory: 
+  name: traj
+  translation: 
+    type: bspline
+    bspline:
+      res: 100 
+      order: 3
+      span_time: 2
+      control_pts: 
+        - [0,0,0] 
+        - [0,0,0]
+        - [0,0,0]
+        - [3,0,0]
+        - [16,7,0]
+        - [12,14,0]
+        - [7,1,0]
+        - [0,20,0]
+        - [-10,17,0]
+        - [-3,8,0]
+        - [0,0,0]
+        - [0,0,0]
+        - [0,0,0]
+  rotation: 
+    type: align_axis
+    align_axis:
+      axis: x
+      with: vel
+      grounded_axis: y
+      flip: false
