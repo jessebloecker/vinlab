@@ -1,22 +1,21 @@
 #!/usr/bin/env python 
 
 import numpy as np
-from scipy.spatial.transform import Rotation
+import motion_utils as utils
 
 class TranslationTrajectory():
     """"
     trajectory containing position, velocity, and acceleration
     """
-    def __init__(self, pos, dur=None, t=None, vel=None, acc=None):
-
-        if dur is None and t is None:
-            raise ValueError(self.__class__.__name__+': Must provide either duration or array of time stamps')
+    def __init__(self, pos, t=None, dur=None, vel=None, acc=None):
 
         n = len(pos)
-        dt = dur/(n-1)
+        _t, _dur = utils.init_trajectory_timestamps(n,t,dur)
         
+        dt = _dur/(n-1)
         numerical_vel = self.time_derivative(1,pos,dt)
         numerical_acc = self.time_derivative(1,numerical_vel,dt)
+
         _vel = numerical_vel if (vel is None) else vel
         _acc = numerical_acc if (acc is None) else acc
 
@@ -25,9 +24,11 @@ class TranslationTrajectory():
         self.acc = _acc
         self.numerical_vel = numerical_vel
         self.numerical_acc = numerical_acc
-        self.dur = dur
         self.n = n
+        self.dur = _dur
+        self.t = _t
         self.dt = dt
+        self.rate = 1./dt
 
     @classmethod
     def time_derivative(cls,order,data,dt):
@@ -56,7 +57,7 @@ class BSpline(TranslationTrajectory):
 
         self.res = res
         self.order = order
-        self.span_time = span_time
+        self.span_time = float(span_time)
         self.control_pts = np.array(control_pts).astype(np.float64)
         self.core = BSplineCore(res,order)
         _dur = span_time*(len(control_pts)-order) # total duration in seconds

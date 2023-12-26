@@ -8,46 +8,24 @@ class RotationTrajectory():
     """"
     trajectory containing sequence of rotations from a fixed frame, angular velocity, and angular acceleration
     """
-    def __init__(self, rot, dur=None, t=None):
-        if dur is None and t is None:
-            raise ValueError(self.__class__.__name__+': Must provide either duration or array of time stamps')
+    def __init__(self, rot, t=None, dur=None):
 
         n = len(rot)
-        dt = dur/(n-1)
-        _rot = self.init_rotation(rot)
-        self.R = _rot.as_matrix()
-        self.q = _rot.as_quat()
-        self.axes = None
-        self.angles = None
-        self.n = n
-        self.dur = dur
-        self.dt = dt
+        _t, _dur = utils.init_trajectory_timestamps(n,t,dur)
+        dt = _dur/(n-1)
+        
+        _rot = utils.as_scipy_rotation(rot)
+        R = _rot.as_matrix()
+        angvel, body_angvel = utils.angvel_from_rotations(R,dt)
 
-        angvel, body_angvel = utils.angvel_from_rotations(self.R,dt)
+        self.R = _rot.as_matrix()
         self.angvel = angvel
         self.body_angvel = body_angvel
-
-
-
-    def init_rotation(self,rot):
-        """
-        Initialize a scipy Rotation object based on dimensions of given the input
-        return rotation object
-        """
-        N = len(rot)
-        dim = rot.shape
-        if dim == (4,) or dim == (N,4):
-            out = Rotation.from_quat(rot)
-
-        elif dim == (3,3) or dim == (N,3,3):
-            out = Rotation.from_matrix(rot)
-
-        elif dim == (3,) or dim == (N,3):
-            out = Rotation.from_euler('xyz', rot)
-        
-        else:
-            raise ValueError('Invalid rotation input with shape {}'.format(dim))
-        return out
+        self.n = n
+        self.dur = _dur
+        self.t = _t
+        self.dt = dt
+        self.rate = 1./dt
 
     def relative(self,a,b):
         """
