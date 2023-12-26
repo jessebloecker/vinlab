@@ -1,11 +1,11 @@
 trajectory: 
-  name: traj
+  id: traj
   translation: 
     type: bspline
     bspline:
-      res: 100 
+      res: 200
       order: 3
-      span_time: 2
+      span_time: 3
       control_pts: 
         - [0,0,0] 
         - [0,0,0]
@@ -20,10 +20,95 @@ trajectory:
         - [0,0,0]
         - [0,0,0]
         - [0,0,0]
+        # circle radius 10
+        # - [ 10.   , 0.   , 0.]
+        # - [  9.01 , 4.339, 0.]
+        # - [  6.235, 7.818, 0.]
+        # - [  2.225, 9.749, 0.]
+        # - [ -2.225, 9.749, 0.]
+        # - [ -6.235, 7.818, 0.]
+        # - [ -9.01 , 4.339, 0.]
+        # - [-10.   , 0.   , 0.]
+        # - [ -9.01 ,-4.339, 0.]
+        # - [ -6.235,-7.818, 0.]
+        # - [ -2.225,-9.749, 0.]
+        # - [  2.225,-9.749, 0.]
+        # - [  6.235,-7.818, 0.]
+        # - [  9.01 ,-4.339, 0.]
+        # - [ 10.   ,-0.   , 0.]
+
   rotation: 
     type: align_axis
     align_axis:
-      axis: x
+      axis: y
       with: vel
-      grounded_axis: y
+      grounded_axis: x
       flip: false
+
+features:
+  - id: feats0
+    type: point_set
+    points:
+      - [0,3,100]
+      - [1,2,-2]
+      - [3,6,-2]
+      - [4,5,1]
+  - id: feats1
+    type: point_set
+    num: 59
+    center: [0,0,0]
+    radius: 20
+
+platform:
+  id: 'mono'
+  base_frame: 'imu0' # the frame that will follow the trajectory
+  body_frames:
+    - id: test_frame
+      transform: 
+        rotation: [30,15,0]
+        translation: [1,2,0]
+  sensors:
+    - id: 'imu0'
+      type: 'imu'
+      rate: 100 
+      transform: 
+        # from_file: 'imu_to_cam0.yaml'
+        rotation: [0,0,5] #ZYX intrinsic, in degrees
+        translation: [0,0,0]
+      imu:
+        gyro_noise: 0.001 #noise density (sigma/sqrt(Hz))
+        gyro_bias: 0.0001 
+        accel_noise: 0.01 
+        accel_bias: 0.001
+    - id: 'cam0'
+      type: 'camera'
+      rate: 30
+      transform: 
+        # from_file: 'imu_to_cam0.yaml'
+        translation: [0.,0.,9.]
+        rotation: [0,0,45] #euler fixed-axis xyz, in degrees
+      camera:
+        height: 480
+        width: 640
+        intrinsics: [500,500,320,240] #fx,fy,cx,cy
+        distortion: None
+          # type: 'radtan'
+          # params: [0.1,0.1,0.1,0.1] #k1,k2,p1,p2
+    - id: 'cam1'
+      type: 'camera'
+      rate: 25
+      transform: 
+        # from_file: 'imu_to_cam0.yaml'
+        translation: [0,4,0]
+        rotation: [65,0,0] #euler fixed-axis xyz in degrees
+      camera:
+        height: 480
+        width: 640
+        rate: 30 
+        intrinsics: [500,500,320,240] #fx,fy,cx,cy
+        distortion: None
+  
+
+
+
+
