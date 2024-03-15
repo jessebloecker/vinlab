@@ -18,14 +18,20 @@ class RotationTrajectory():
         R = _rot.as_matrix()
         angvel, body_angvel = utils.angvel_from_rotations(R,dt)
 
+        self.rot = _rot
         self.R = _rot.as_matrix()
         self.angvel = angvel
         self.body_angvel = body_angvel
+        self.dt = dt
+        self.angacc = utils.time_derivative(1,angvel,dt)
+        self.body_angacc = utils.in_frame(R,self.angacc)
         self.n = n
         self.dur = _dur
         self.t = _t
-        self.dt = dt
         self.rate = 1./dt
+
+    def get_quaternions(self):
+        return utils.as_quaternion(self.R)
 
     def relative(self,a,b):
         """
@@ -51,7 +57,3 @@ class RotationTrajectory():
     
     def relative_angle(self,a,b):
         return np.linalg.norm(self.relative_axis(a,b),axis=1)
-    
-
-        
- 
