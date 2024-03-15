@@ -4,6 +4,7 @@ import numpy as np
 from translation_trajectory import TranslationTrajectory, BSpline
 from rotation_trajectory import RotationTrajectory
 import motion_utils as utils
+from trajectory_eval import TrajectoryEval
 
 class Trajectory():
     """
@@ -11,7 +12,6 @@ class Trajectory():
     or from arrays of positions and rotations
     """
     def __init__(self, translation, rotation, traj_id='traj'):
-
         self.id = traj_id
         self.frame = 'global'
         self.body_frame = 'body'
@@ -30,7 +30,8 @@ class Trajectory():
         acc = self.translation.acc
         self.body_vel = utils.in_frame(R,vel)
         self.body_acc = utils.in_frame(R,acc)
-        
+        self.eval = TrajectoryEval(self)
+
     def normalize_timestamps(self):
         """
         normalize timestamps by subtracting initial time stamp from all time stamps
@@ -50,11 +51,10 @@ class Trajectory():
         returns:
             traj_sub: new Trajectory object at a subsampled rate
         """
-    
         pos = self.translation.pos
         R = self.rotation.R
         orig_rate = self.rate
-    
+
         if rate <= 0:
             print(self.__class__.__name__+': subsample rate {:.1f} is <= 0, using original rate {:.1f}'.format(rate,orig_rate))
             rate = orig_rate
@@ -77,7 +77,6 @@ class Trajectory():
             R_sub = R[s::step,:,:]
             t_sub = t[s::step]
 
-        # print('subsampled rate: requested: {} actual: {}'.format(rate,1/np.median(np.diff(t_sub))))
         traj_sub = Trajectory.from_arrays(pos_sub,R_sub,t=t_sub)
         return traj_sub
     
@@ -96,9 +95,9 @@ class Trajectory():
 
         pos = self.translation.pos
         R = self.rotation.R
-     
         R_new = R@R_static # (n x 3 x 3) @ (1 x 3 x 3) = n x 3 x 3
         pos_new = pos + np.squeeze(R@t.reshape(1,3,1)) 
+        # print(np.allclose(R,R_new))
 
         traj = Trajectory.from_arrays(pos_new,R_new,t=self.t)
         return traj
@@ -114,8 +113,9 @@ class Trajectory():
         """
         return NotImplemented
 
+
     @classmethod
-    def from_arrays(cls, pos,rot,*, dur=None,t=None,vel=None,acc=None,name=None):
+    def from_arrays(cls, pos,rot,*, t=None, dur=None,vel=None,acc=None,name=None):
         """
         initialize Trajectory object from arrays
         if rot is None, initialize with identity rotation
@@ -123,7 +123,6 @@ class Trajectory():
         if pos is None, initialize with zero translation
             if pos is single value, initialize with constant translation
         """
-        
         translation = TranslationTrajectory(pos, t, dur)
         rotation = RotationTrajectory(rot, t, dur)
 
@@ -131,9 +130,6 @@ class Trajectory():
     
     @classmethod
     def config(cls, config):
-        #if dict, initialize from dict
-        #if file, isolate only the trajectory config
-
         traj_id = config['id']
         translation = config['translation']
         rotation = config['rotation']

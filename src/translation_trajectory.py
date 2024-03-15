@@ -13,8 +13,8 @@ class TranslationTrajectory():
         _t, _dur = utils.init_trajectory_timestamps(n,t,dur)
         
         dt = _dur/(n-1)
-        numerical_vel = self.time_derivative(1,pos,dt)
-        numerical_acc = self.time_derivative(1,numerical_vel,dt)
+        numerical_vel = utils.time_derivative(1,pos,dt)
+        numerical_acc = utils.time_derivative(1,numerical_vel,dt)
 
         _vel = numerical_vel if (vel is None) else vel
         _acc = numerical_acc if (acc is None) else acc
@@ -30,19 +30,19 @@ class TranslationTrajectory():
         self.dt = dt
         self.rate = 1./dt
 
-    @classmethod
-    def time_derivative(cls,order,data,dt):
-        """
-        Compute any order time derivative of a series of points, given dt
-        params:
-            data: nx3 array of data
-            order: order of derivative 
-            dt: time step
-        """
-        out = data
-        for i in range(order):
-            out = np.gradient(out,axis=0)/dt
-        return out
+    # @classmethod
+    # def time_derivative(cls,order,data,dt):
+    #     """
+    #     Compute any order time derivative of a series of points, given dt
+    #     params:
+    #         data: nx3 array of data
+    #         order: order of derivative 
+    #         dt: time step
+    #     """
+    #     out = data
+    #     for i in range(order):
+    #         out = np.gradient(out,axis=0)/dt
+    #     return out
     
 
 
@@ -52,12 +52,13 @@ class BSpline(TranslationTrajectory):
     """
     BSpline object - contains all of the bspline parameters and methods for evaluating uniform bspline and its derivatives
     """
-    def __init__(self, res=100, order=3, span_time=1, control_pts=None): #config is a dictionary loaded from yaml
+    def __init__(self, res=100, order=3, span_time=1, geometric_only=False, control_pts=None): #config is a dictionary loaded from yaml
         # self.load_config(config_path)/
 
         self.res = res
         self.order = order
         self.span_time = float(span_time)
+        self.geometric_only = geometric_only
         self.control_pts = np.array(control_pts).astype(np.float64)
         self.core = BSplineCore(res,order)
         _dur = span_time*(len(control_pts)-order) # total duration in seconds
@@ -71,7 +72,7 @@ class BSpline(TranslationTrajectory):
         """
         update the configuration parameters
         """
-        allowed_keys = {'res','order','span_time','control_pts'}
+        allowed_keys = {'res','order','span_time','control_pts', 'geometric_only'}
         self.__dict__.update((k, v) for k, v in kwargs.items() if k in allowed_keys)
         if 'res' in kwargs or 'order' in kwargs:
             core = BSplineCore(res,order)
@@ -84,6 +85,7 @@ class BSpline(TranslationTrajectory):
         control_pts = self.control_pts
         core = self.core
         span_time = self.span_time
+        geometric_only = self.geometric_only
 
         k = core.order
         M = core.get_blending_matrix(k) 
@@ -91,17 +93,17 @@ class BSpline(TranslationTrajectory):
         l = len(control_pts) 
         N = n*(l-k) #total number of points in (each) spline
 
+        pos = np.zeros((N,3)) 
+        vel = np.zeros((N,3))
+        acc = np.zeros((N,3))
         
+
+    
         #could just loop to the end to handle any number of derivatives. prob gonna have to do this
         all_basis = core.basis_vectors
         pos_basis = core.basis_vectors[0,:,:] #nxk
         vel_basis = core.basis_vectors[1,:,:] #nxk
         acc_basis = core.basis_vectors[2,:,:] #nxk
-
-        pos = np.zeros((N,3)) 
-        vel = np.zeros((N,3))
-        acc = np.zeros((N,3))
-
         for i in range(l-k): #could probably make this whole thing a matrix operation somehow (make giant diagonal matrix...i've done this before))
             #also, after the first time, you only have to update sections of the bspline each time, not recompute the whole thing
             pts = control_pts[i:i+k+1,:] #sliding window of (k+1) control points
@@ -110,6 +112,21 @@ class BSpline(TranslationTrajectory):
             pos[lower:upper,:] = np.linalg.multi_dot((pos_basis,M,pts)) #(n x k1)*(k1 x k1)*(k1 x 3)=(n x 3), where k1 = order+1
             vel[lower:upper,:] = np.linalg.multi_dot((vel_basis,M,pts))*(1.0/span_time)
             acc[lower:upper,:] = np.linalg.multi_dot((acc_basis,M,pts))*(1.0/span_time)**2
+        if geometric_only:
+            pass
+            #constant velocity, zero acceleration in the direction of the spline
+            # pos = same number of points, but make them all evenly spaced, this is actually not trivial
+                    # you have to generate points that are not on the spline
+                    # could integrate the velocity, but wont be that accurate...
+                    #find the shortest distance between two points on the spline (up to a limit)
+                    #then use that distance to fill gaps in more distantly spaced pairs
+                    # nah this is too complicated, just use the velocity to generate points
+            
+            # vel = np.nan_to_num(vel.T/np.linalg.norm(vel,axis=1)).T
+            #integrate the velocity to get the position
+            # pos = np.cumsum(vel,axis=1)
+            # acc = None #numerical acceleration will be computed in the trajectory __init__
+
 
         return pos, vel, acc
 
