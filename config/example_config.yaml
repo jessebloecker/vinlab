@@ -3,20 +3,23 @@ trajectory:
   translation: 
     type: bspline
     bspline:
-      res: 200
+      res: 50
       order: 3
       span_time: 3
+      geometric_only: false #if true bspline will define the position only, velocity magnitude be specified as a constant, or function of time
       control_pts: 
         - [0,0,0] 
         - [0,0,0]
         - [0,0,0]
         - [3,0,0]
-        - [16,7,0]
-        - [12,14,0]
-        - [7,1,0]
-        - [0,20,0]
-        - [-10,17,0]
+        - [16,-7,0]
+        - [12,14,5]
+        - [7,1,-1]
+        - [0,10,0]
+        - [-5,10,0]
         - [-3,8,0]
+        - [0,0,0]
+        - [0,0,0]
         - [0,0,0]
         - [0,0,0]
         - [0,0,0]
@@ -36,28 +39,43 @@ trajectory:
         # - [  6.235,-7.818, 0.]
         # - [  9.01 ,-4.339, 0.]
         # - [ 10.   ,-0.   , 0.]
-
+        # - [ 10.   ,-0.   , 0.]
+        # - [ 10.   ,-0.   , 0.]
   rotation: 
     type: align_axis
     align_axis:
-      axis: y
+      axis: x
       with: vel
-      grounded_axis: x
-      flip: false
+      grounded_axis: z
+      flip: true
 
 features:
   - id: feats0
     type: point_set
-    points:
-      - [0,3,100]
-      - [1,2,-2]
-      - [3,6,-2]
-      - [4,5,1]
+    color: red
+    num: 50
+    center: [5,3,0]
+    radius: 1
+    # grid_spacing: 1 
+    # normal: [0,0,1]
+    # around_trajectory: false #if true, center is ignored, and radius is the  max distance from the trajectory
+    # points:
+      # - [5,3,0]
+      # - [1,4,0]
+      # - [2,2,0]
+
   - id: feats1
-    type: point_set
-    num: 59
-    center: [0,0,0]
-    radius: 20
+    type: point_set #random point set, planar_point_set
+    num: 50
+    color: purple
+    center: [7,0,3]
+    radius: 1
+  
+  - id: feats2
+    type: point_set #random point set, planar_point_set
+    num: 300
+    center: [-3,3,0]
+    radius: 2
 
 platform:
   id: 'mono'
@@ -70,10 +88,11 @@ platform:
   sensors:
     - id: 'imu0'
       type: 'imu'
+      enable_measurements: true
       rate: 100 
       transform: 
         # from_file: 'imu_to_cam0.yaml'
-        rotation: [0,0,5] #ZYX intrinsic, in degrees
+        rotation: [0,0,0] #ZYX intrinsic, in degrees
         translation: [0,0,0]
       imu:
         gyro_noise: 0.001 #noise density (sigma/sqrt(Hz))
@@ -82,33 +101,32 @@ platform:
         accel_bias: 0.001
     - id: 'cam0'
       type: 'camera'
-      rate: 30
+      enable_measurements: true
+      rate: 25
       transform: 
         # from_file: 'imu_to_cam0.yaml'
-        translation: [0.,0.,9.]
-        rotation: [0,0,45] #euler fixed-axis xyz, in degrees
+        translation: [0.,0.,0.]
+        rotation: [0,0,0] #euler fixed-axis xyz, in degrees
       camera:
         height: 480
         width: 640
-        intrinsics: [500,500,320,240] #fx,fy,cx,cy
+        intrinsics: [200,200,320,240] #fx,fy,cx,cy
         distortion: None
           # type: 'radtan'
           # params: [0.1,0.1,0.1,0.1] #k1,k2,p1,p2
+
     - id: 'cam1'
       type: 'camera'
+      enable_measurements: false
       rate: 25
       transform: 
         # from_file: 'imu_to_cam0.yaml'
         translation: [0,4,0]
         rotation: [65,0,0] #euler fixed-axis xyz in degrees
       camera:
-        height: 480
-        width: 640
-        rate: 30 
+        height: 1080
+        width: 1920
+        rate: 5 
         intrinsics: [500,500,320,240] #fx,fy,cx,cy
         distortion: None
   
-
-
-
-
