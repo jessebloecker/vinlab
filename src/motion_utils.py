@@ -40,46 +40,84 @@ def rotation_align_axis(axis,vec,grounded_axis=None,flip=False):
            expressed in the same frame as provided vectors. If multiple vectors are provided,
            R will be a 3d array with shape (3,3,n)
 
-    use: a1 = axis, a2 = grounded_axis, a3 = last_axis
+    use: a1 = aligned axis, a2 = grounded axis, a3 = third axis
     """
-    n = vec.shape[0]
-    a1 =np.zeros((n,3))
-    a2 =np.zeros((n,3))
-    a3 =np.zeros((n,3))
-    R = np.zeros((n,3,3))
-
     remaining = [0,1,2] #axis numbers corresponding to 'xyz'
     try:
-        axis_num = 'xyz'.index(axis)
-        remaining.remove(axis_num)
+        aligned_num = 'xyz'.index(axis)
+        remaining.remove(aligned_num)
         if not grounded_axis:
-            grounded_num = (axis_num+1)%3 #next sequential axis number
+            grounded_num = (aligned_num+1)%3 #next sequential axis number
         elif grounded_axis==axis:
             raise ValueError('axes cannot be the same')
         else:
             grounded_num='xyz'.index(grounded_axis)
         remaining.remove(grounded_num)
-        last_num = remaining[0] #whichever the last remaining axis number is
+        third_num = remaining[0] #whichever the last remaining axis number is
     except ValueError:
         print('axis names must be \'x\',\'y\', or \'z\'')
         raise 
 
-    a1[:,:] = unit(vec) #first axis
-    
-    a2[:,0] =  a1[:,1] 
-    a2[:,1] =  -a1[:,0]
-    a2[:,:] = (-1.0 if flip else 1.0)*unit(a2)  #second axis ("grounded_axis")
-
     positive_seq = bool(axis+grounded_axis in ['xy','yz','zx'])
+    tol = 1e-6 #tolerance for nearly vertical alignment vectors
+    sign = -1.0 if flip else 1.0
+
+    if vec.ndim == 1: #handle the case of a single vector
+        a1 = unit(vec)
+        x,y,z = a1
+        if 1.0-abs(z) < tol:
+            a2 = sign*np.array([1.,0.,0.])
+        else:
+            a2 = sign*np.array([y,-x,0])
+        a3 = (1.0 if positive_seq else -1.0)*np.cross(a1,a2)
+        R = np.zeros((3,3))
+        R[:,aligned_num] = a1
+        R[:,grounded_num] = a2
+        R[:,third_num] = a3
+        return R
+
+    n = len(vec)
+    a1 =np.zeros((n,3)).astype(np.float32)
+    a2 =np.zeros((n,3)).astype(np.float32)
+    a3 =np.zeros((n,3)).astype(np.float32)
+    R = np.zeros((n,3,3)) #output array of rotation matrices
+    
+    a1[:,:] = unit(vec) #first axis
+    abs_z = np.abs(a1[:,2]).flatten()
+    mask = 1.0-abs_z>tol #False where z is nearly 1 or -1
+
+    #for now, enforce that the first and last entry in 'vec' are not nearly vertical
+    #TODO: don't enforce this, find nearest non-vertical vector from both ends and the corresponding grounded axis, use that as the grounded axis
+    if not mask[0] or not mask[-1]:
+        raise ValueError('rotation_align_axis: first and last alignment vector must not be nearly vertical')
+
+    # for each non-vertical alignment axis [x,y,z]: grounded axis = [y,-x,0] (or [-y,x,0] if flip=True)
+    a2[mask,0] =  a1[mask,1]
+    a2[mask,1] =  -a1[mask,0]
+    a2 = unit(a2) #renormalize
+    
+    mask = mask.astype(int)
+    start = np.where(np.diff(mask)==-1)[0] #indices right before each group of vertical vectors starts
+    end = np.where(np.diff(mask)==1)[0]+1 #indices right after each group of vertical vectors ends
+    assert len(start)==len(end)
+
+    num_groups = len(start) #number of groups of nearly vertical vectors within 'vec' array
+    for i in range(num_groups):
+        s = start[i]
+        e = end[i]
+        ng = e-s+1 #number of vectors in the group, including the two bounding vectors
+        a2[s:e+1,:] = unit(linear_interp(a2[s],a2[e],ng))
+
+    a2[:,:] = sign*a2 #negates the 'grounded' axis if flip=True, since there are two possible solutions
     a3[:,:] = (1.0 if positive_seq else -1.0)*np.cross(a1,a2) #third axis
 
-    R[:,:,axis_num] = a1
+    R[:,:,aligned_num] = a1
     R[:,:,grounded_num] = a2
-    R[:,:,last_num] = a3
+    R[:,:,third_num] = a3
 
     # for i in np.arange(n): #debug
     #     print('i: {} a1: {} a2: {} a3: {}'.format(i,a1[i],a2[i],a3[i]))
-    return np.squeeze(R)
+    return R
     
 
 def angvel_from_rotations(rot,dt):
@@ -89,7 +127,7 @@ def angvel_from_rotations(rot,dt):
         seq: 3d array of shape (n,3,3) where seq[i,:,:] is the rotation matrix at time i
         dt: float, time step between each rotation matrix
     returns:
-        angvel: 2d array of shape (n,3) where angvel[i,:] is the angular velocity at time i expressed in the moving frame
+        (angvel, body_angvel): 2d array of shape (n,3) where angvel[i,:] is the angular velocity at time i expressed in the global frame and body frame
     
     Example
      n = 10  --->  k = 5
@@ -284,28 +322,57 @@ def config_transform(config):
     pos = np.array(config['translation']).astype(np.float32)
     return (R,pos)
 
+def time_derivative(order,data,dt):
+    """
+    Compute any order time derivative of a series of points, given dt
+    params:
+        data: nx3 array of data
+        order: order of derivative 
+        dt: time step
+    """
+    out = data
+    for i in range(order):
+        out = np.gradient(out,axis=0)/dt
+    return out
 
-def attribute_print(obj,indent=1,object_name=None):
-    if object_name is None:
-        object_name = obj.__class__.__name__
-    PURPLE = "\033[0;35m"
-    YELLOW = "\033[1;33m"
-    BOLD = "\033[1m"
-    END = "\033[0m"
-    space='    '
-    print((indent-1)*space+YELLOW+str(object_name)+END)
-    for k, v in obj.__dict__.items():
-        if v.__class__.__module__=='numpy':
-            print(indent*space+BOLD+'{}: '.format(k)+END+
-                    PURPLE+'{} '.format(v.shape)+END+'{}'.format(v.dtype))
-        elif isinstance(v,list):
-            print((indent)*space+YELLOW+str(k.title())+END)
-            for i in range(len(v)):
-                attribute_print(v[i],indent+2,object_name='_')
-        elif not v.__class__.__module__=='builtins':
-            attribute_print(v,indent+1)
-        else:
-            print(indent*space+BOLD+'{}'.format(k)+END+': {}'.format(v))
+
+def random_point_set(n, radius, center):
+    """
+    generate 'n' random points uniformly distributed within a sphere with 'radius' and 'center'
+    """
+    c = center
+    r_max = radius
+
+    v = np.random.uniform(-1,1,(n,3))
+    u = (v.T/np.linalg.norm(v,axis=1)) #random unit vectors
+    r = np.cbrt(np.random.uniform(0,r_max**3,n)) #random scales, prevent clustering at center
+    points = np.multiply(u,r).T.astype(np.float32) + np.tile(c,(n,1))
+    return points
+
+def planar_point_set(radius, center, normal, n=None, grid_spacing=None):
+    c = center
+    r_max = radius
+    if grid_spacing is not None:
+        _min = -r_max/2
+        _max = r_max/2+grid_spacing #add one grid_spacing to the maximum to include the last point
+        X,Y = np.mgrid[_min:_max:grid_spacing, _min:_max:grid_spacing]
+        xy = np.vstack((X.ravel(),Y.ravel())).T
+        points_xy = np.hstack((xy,np.zeros((xy.shape[0],1)))).astype(np.float32)
+        n = len(points_xy)
+    elif n is not None:
+        v = np.hstack((np.random.uniform(-1,1,(n,2)),np.zeros((n,1)))) #z component is zero
+        u = (v.T/np.linalg.norm(v,axis=1)) #random unit vectors on xy plane
+        r = np.sqrt(np.random.uniform(0,r_max**2,n)) #random scales, prevent clustering at center
+        points_xy = np.multiply(u,r).T.astype(np.float32)
+    else:
+        raise ValueError('provide either number of points or grid_spacing')
+    print('center: {}\nradius: {}\nnormal: {}\npoints_xy: {}'.format(center.shape,radius.shape,normal.shape,points_xy.shape))
+    R = rotation_align_axis(axis='z', vec=normal, grounded_axis='x')
+    #print the shape of all of these variables:
+    points = (R@points_xy.T).T + np.tile(center,(n,1))
+    return points
+
+
 
 def init_trajectory_timestamps(n, t=None, dur=None):
     """
@@ -331,3 +398,30 @@ def init_trajectory_timestamps(n, t=None, dur=None):
     else:
         raise ValueError('must provide either a duration or an array of time stamps')
     return _t, _dur
+
+def linear_interp(a,b,n):
+    """
+    compute linear interpolation with 'n' steps from vector 'a' to vector 'b', including 'a' and 'b'
+    returns: array of shape (n,3)
+    """
+   
+    t = np.linspace(0,1,n).reshape(-1,1)
+    return (1-t)*a + t*b
+
+def get_correspondences(frame_id, index):
+    pass
+def get_2d_correspondences():
+    pass
+def get_3d_correspondences():
+    pass
+
+
+def index_from_timestamp(stamps,value):
+
+    """
+    returns the index of the closest match to 'value' - used from timestamp matching
+    diff = time difference:  value + diff  = closest time stamp
+    """
+    index = (np.abs(stamps- value)).argmin()
+    diff = stamps[index] - value
+    return index, diff
