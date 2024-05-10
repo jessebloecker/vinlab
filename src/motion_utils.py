@@ -3,6 +3,7 @@ import numpy as np
 from scipy.linalg import block_diag
 from scipy.spatial.transform import Rotation
 
+
 def unit(vec):
     """
     normalize vector to unit length
@@ -138,34 +139,6 @@ def angvel_from_rotations(rot,dt):
        even   (0) | 2 | 4 | 6 | 8           endpoints are handled separately at the end
                   |   |   |   |             
                   1 | 3 | 5 | 7 | (9)
-
-
-    relative rotations computed by creating a block diagonal matrix 
-    and a corresponding stacked matrix, once for the odd indices, and once for the even indices:
-
-    -----------------------------------------------------------------------------       
-                       T
-    |R1               |     |   R3   |       |  rel2     |    
-    |   R3            |     |   R5   |       |  rel4     |
-    |     R5          |  *  |   R7   |    =  |  rel6     | 
-    |       ...       |     |  ...   |       |   ...     | 
-    |           R(n-3)|     |  R(n-1)|       |  rel(n-2) | 
-
-    block(R_o)           *  stack(R_o)    =    rel_e        <----rel_e = relative rotations at even indices
-      from 0 to k-1         from 1 to k      shape(3*k,3)
-    
-    -----------------------------------------------------------------------------
-    
-    
-                       T
-    |R0               |     |   R2   |       |  rel1     |    
-    |   R2            |     |   R4   |       |  rel3     |
-    |     R4          |  *  |   R6   |    =  |  rel5     | 
-    |       ...       |     |  ...   |       | ...       | 
-    |           R(n-4)|     |  R(n-2)|       |  rel(n-3) | 
-
-    block(R_e)           *    stack(R_e)  =    rel_o        <----rel_o = relative rotations at odd indices
-      from 0 to k-1         from 1 to k       shape(3*k,3)
     
     """
     R = rot
@@ -182,12 +155,14 @@ def angvel_from_rotations(rot,dt):
 
     i = 0
     for R_half in (R_e,R_o): 
-        block = block_diag(*R_half[0:k-1])
-        stack = stack_2d(R_half[1:k])
-        rel = (block.T@stack).reshape(k-1,3,3)
+        # block = block_diag(*R_half[0:k-1])  #block diag and stack not necessary, use broadcasting
+        # stack = stack_2d(R_half[1:k])              
+        # rel = (block.T@stack).reshape(k-1,3,3)
+        rel = R_half[0:k-1].swapaxes(1,2)@R_half[1:k]
         R_rel[1:n-1][i::2] = rel # 'interlace' the relative rotations back into one (n,3,3) array
         i+=1
 
+        
     # now handle the endpoints
     if n_is_odd:
         n+=1
@@ -212,7 +187,9 @@ def angvel_from_rotations(rot,dt):
     body_angvel[0] = (1/dt)*rotvec[0]
     body_angvel[1:n-1,:] = (1/(2*dt))*rotvec[1:n-1,:]
     body_angvel[n-1] = (1/dt)*rotvec[n-1]
-    angvel = (block_diag(*R)@body_angvel.flatten()).reshape(n,3)
+    # angvel = (block_diag(*R)@body_angvel.flatten()).reshape(n,3) #not necessary, use broadcasting
+    angvel = (R@(body_angvel.reshape(n,3,1))).reshape(n,3)
+
 
     return angvel, body_angvel
 
@@ -283,8 +260,10 @@ def as_scipy_rotation(rot):
             3x1 vector, assume roll-pitch-yaw = (x,y,z) 
                                 with convention x --> y --> z in fixed frame
                                 (equivalent to z --> y --> x in body frame)
-            1x1 scalar, assume yaw in radians
     """
+    #if its already a scipy roation object, return it
+    if isinstance(rot,Rotation):
+        return rot
     n = len(rot)
     dim = rot.shape
     if dim == (4,) or dim == (n,4):
@@ -292,7 +271,7 @@ def as_scipy_rotation(rot):
     elif dim == (3,3) or dim == (n,3,3):
         out = Rotation.from_matrix(rot)
     elif dim == (3,) or dim == (n,3):
-        out = Rotation.from_euler('xyz', rot)
+        out = Rotation.from_euler('xyz', rot,degrees=True)
     else:
         raise ValueError('Invalid rotation input with shape {}'.format(dim))
     return out
@@ -307,20 +286,20 @@ def q_conjugate(q):
         q_conj = [-x,-y,-z,w]
     """
     n = len(q)
-    if not q.shape in [(4,), (4,n)]:
-        raise ValueError('\'q\' must have shape (4,) or (4,n), got shape {}, n={}'.format(q.shape,n))
+    if not q.shape in [(4,), (n,4)]:
+        raise ValueError('\'q\' must have shape (4,) or (n,4), got shape {}, n={}'.format(q.shape,n))
     
     q_conj = np.zeros(q.shape)
-    q_conj[0:3] = -q[0:3]
-    q_conj[3] = q[3]
+    q_conj[:,0:3] = -q[:,0:3]
+    q_conj[:,3] = q[:,3]
     return q_conj
     
     
 def config_transform(config):
-    rotation  = np.array(config['rotation']).astype(np.float32)
-    R = as_scipy_rotation(rotation).as_matrix()
-    pos = np.array(config['translation']).astype(np.float32)
-    return (R,pos)
+    rotation  = np.array(config['rotation']).astype(float)
+    rot = as_scipy_rotation(rotation)
+    pos = np.array(config['translation']).astype(float)
+    return (rot,pos)
 
 def time_derivative(order,data,dt):
     """
@@ -366,7 +345,7 @@ def planar_point_set(radius, center, normal, n=None, grid_spacing=None):
         points_xy = np.multiply(u,r).T.astype(np.float32)
     else:
         raise ValueError('provide either number of points or grid_spacing')
-    print('center: {}\nradius: {}\nnormal: {}\npoints_xy: {}'.format(center.shape,radius.shape,normal.shape,points_xy.shape))
+    # print('center: {}\nradius: {}\nnormal: {}\npoints_xy: {}'.format(center.shape,radius.shape,normal.shape,points_xy.shape))
     R = rotation_align_axis(axis='z', vec=normal, grounded_axis='x')
     #print the shape of all of these variables:
     points = (R@points_xy.T).T + np.tile(center,(n,1))
@@ -425,3 +404,5 @@ def index_from_timestamp(stamps,value):
     index = (np.abs(stamps- value)).argmin()
     diff = stamps[index] - value
     return index, diff
+
+
