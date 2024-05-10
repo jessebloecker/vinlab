@@ -4,7 +4,6 @@
 Specify a visual-inertial scene containing a trajectory, sensor platform, and features.
 
 
-<span style="font-size:0.5em;">
 <details>
 <summary><b>example_config.yaml</b>: bspline trajectory, 2 cameras, 1 imu, point features</summary>
 
@@ -155,14 +154,33 @@ features:                               #list of features to be added to the sce
 
 ```
 </details>
-</span>
-
-
 
 https://github.com/jessebloecker/vinlab/assets/29802265/815486bf-6d41-4584-a26d-bc99d16f060b
 
 
+Vinlab contains Python and C++ and uses [Scipy](https://scipy.org/), [OpenCV](https://opencv.org/), [ROS2](https://docs.ros.org/en/humble/index.html), and [Eigen](https://eigen.tuxfamily.org/dox/GettingStarted.html)
 
+
+## Install
+todo: put instructions here
+
+## Run Demo
+todo: put instructions here
+
+run the scene viewer
+~~~
+ros2 run vinlab scene_viewer.py --ros-args --params-file /path/to/ros2_ws/src/vinlab/config/scene_viewer.yaml
+~~~
+
+run the camera simulator
+~~~
+ros2 run vinlab cam_simulator_node
+~~~
+
+run rviz:
+~~~
+rviz2 -d ~/path/to/config.rviz'
+~~~
 
 
 
