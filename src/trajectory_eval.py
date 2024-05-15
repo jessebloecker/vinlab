@@ -1,18 +1,20 @@
 #!/usr/bin/env python 
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 class TrajectoryEval():
     def __init__(self, trajectory):
         """
         evaluate sequences within a trajectory
         """
-        
         self.min = {}
-        self.minval   = {}
+        self.minval = {}
         self.max = {}  
         self.maxval = {}
         self.norms = {}
-        self.normalized_magnitudes = {}
+        self.normalized_norms = {}
+        self.rmse_pos = None
+        self.rmse_angle = None
 
         vec_attrs = {'pos':trajectory.translation.pos,
                      'vel':trajectory.translation.vel,
@@ -23,42 +25,44 @@ class TrajectoryEval():
                      'angacc':trajectory.rotation.angacc,
                      'body_angvel':trajectory.rotation.body_angvel,
                      'body_angacc':trajectory.rotation.body_angacc}
-        
         for k, v in vec_attrs.items():
-            norms = np.linalg.norm(v,axis=1)
-            # norms[0:2] = norms[10:12]
-            self.min[k] = np.argmin(norms)
-            self.minval[k] = np.min(norms)
-            self.max[k] = np.argmax(norms)
-            self.maxval[k] = np.max(norms) 
-            self.norms[k] = norms #check for outliers
-            self.normalized_magnitudes[k] = (norms - self.minval[k])/(self.maxval[k]-self.minval[k])
+            self.add_sequence(k,v)
+          
+        
+    def add_sequence(self,name,seq):
+        norms = np.linalg.norm(seq,axis=1) if seq.ndim > 1 else seq
+        self.min[name] = np.argmin(norms)
+        self.minval[name] = np.min(norms)
+        self.max[name] = np.argmax(norms)
+        self.maxval[name] = np.max(norms) 
+        self.norms[name] = norms #check for outliers
+        self.normalized_norms[name] = (norms - self.minval[name])/(self.maxval[name]-self.minval[name])
 
-            # self.norms['angvel'][0:2] = self.norms['angvel'][10:12]
-
-    # def get_extrema(self):
-    #     """
-    #     if norms are None, get norms first
-    #     get extrema of all components of the trajectory
-    #     returns:
-    #         indices: dictionary of tuples (min,max) corresponding to index numbers
-    #         values: dictionary of tuples (min,max) corresponding to values
-    #         (the keys in both dictionaries are the same: 'pos','vel','acc','body_vel' etc..)
-    #     """
-    #     for k, v in vec_attrs.items():
-    #         norms = np.linalg.norm(v,axis=1) #only do this once, store result in traj.translation.norms.vel or something
-    #                                             # order: None - norms - extrema - normalized_magnitudes 
-    #                                             #                   (unitvecs)
-    #                                             # normalized here is different than unit vector
-    #         self.norms
-    #         index_min = np.argmin(norms) 
-    #         index_max = np.argmax(norms)
-    #         indices[k] = (index_min, index_max)
             
-    #         value_min = np.min(norms)
-    #         value_max = np.max(norms)
-    #         values[k] = (value_min, value_max)
-    #         self.extrema['k'] = Extrema(index_min, value_min, index_max, value_max)
-        
-        
-    #     return indices, values
+class TrajectoryError():
+    def __init__(self, target, reference='ground_truth'):
+        #enforce that reference has greater or equal n
+        n = target.n
+        assert(n==reference.n)
+        self.target = target.id
+        self.reference = reference.id
+        self.timestamps = 0 #time
+        #for every time stamp in the reference, find the closest time stamp in the target, discard the rest, n may change (warn if it does)
+
+
+        #target and reference must have the same number of time stamps
+        self.pos = target.translation.pos - reference.translation.pos #cant do any of this until timestamp matching is done
+        R = reference.rotation.rot.as_matrix().swapaxes(1,2)@target.rotation.rot.as_matrix()
+        rot = Rotation.from_matrix(R)
+        self.rot = rot
+        self.angle = np.linalg.norm(rot.as_rotvec(),axis=1)
+        self.rmse_pos = np.sqrt(np.mean(self.pos**2))
+        self.rmse_angle = np.rad2deg(np.sqrt(np.mean(self.angle**2)))
+        # self.vel = target.translation.vel - reference.translation.vel #enforce that the reference must have greater or equal n
+        # self.acc = target.translation.acc - reference.translation.acc
+        # self.body_vel = target.body_vel - reference.body_vel
+        # self.body_acc = target.body_acc - reference.body_acc
+        # self.angvel = target.rotation.angvel - reference.rotation.angvel
+        # self.angacc = target.rotation.angacc - reference.rotation.angacc
+        # self.body_angvel = target.rotation.body_angvel - reference.rotation.body_angvel
+        # self.body_angacc = target.rotation.body_angacc - reference.rotation.body_angacc

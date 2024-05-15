@@ -4,20 +4,21 @@ import numpy as np
 from translation_trajectory import TranslationTrajectory, BSpline
 from rotation_trajectory import RotationTrajectory
 import motion_utils as utils
-from trajectory_eval import TrajectoryEval
+from trajectory_eval import TrajectoryEval, TrajectoryError
 
 class Trajectory():
     """
     Initialize with TranslationTrajectory and RotationTrajectory objects 
     or from arrays of positions and rotations
     """
-    def __init__(self, translation, rotation, traj_id='traj'):
-        self.id = traj_id
-        self.frame = 'global'
-        self.body_frame = 'body'
+    def __init__(self, translation, rotation, _id='traj', is_reference=False):
+        self.id = _id
+        self.is_reference = is_reference
+        self.global_frame = 'global'
+        self.moving_frame = 'imu0'
         self.translation = translation
         self.rotation = rotation
-
+        
         # get values from translation component: TODO: check if only rotation component is provided
         self.n = translation.n
         self.dur = translation.dur
@@ -25,11 +26,12 @@ class Trajectory():
         self.dt = translation.dt
         self.rate = translation.rate
 
-        R = rotation.R
+        R = rotation.rot.as_matrix()
         vel = self.translation.vel
         acc = self.translation.acc
         self.body_vel = utils.in_frame(R,vel)
         self.body_acc = utils.in_frame(R,acc)
+        self.error= None
         self.eval = TrajectoryEval(self)
 
     def normalize_timestamps(self):
@@ -52,12 +54,12 @@ class Trajectory():
             traj_sub: new Trajectory object at a subsampled rate
         """
         pos = self.translation.pos
-        R = self.rotation.R
-        orig_rate = self.rate
+        R = self.rotation.rot.as_matrix()
+        traj_rate = self.rate
 
         if rate <= 0:
-            print(self.__class__.__name__+': subsample rate {:.1f} is <= 0, using original rate {:.1f}'.format(rate,orig_rate))
-            rate = orig_rate
+            print(self.__class__.__name__+': subsample rate {:.1f} is <= 0, using trajectory rate {:.1f}'.format(rate,traj_rate))
+            rate = traj_rate
 
         t = self.t
         dt = self.dt
@@ -67,8 +69,8 @@ class Trajectory():
             #TODO
             pass
         else:
-            if rate > orig_rate:
-                print(self.__class__.__name__+': subsample rate {:.1f} exceeds or matches original rate {:.1f}, using original rate'.format(rate,orig_rate))
+            if rate > traj_rate:
+                print(self.__class__.__name__+': subsample rate {:.1f} exceeds or matches trajectory rate {:.1f}, using trajectory rate'.format(rate,traj_rate))
                 step = 1
             else:
                 step = round(dt_sub/dt)
@@ -80,9 +82,9 @@ class Trajectory():
         traj_sub = Trajectory.from_arrays(pos_sub,R_sub,t=t_sub)
         return traj_sub
     
-    def transfer(self,rotation,translation):
+    def transform(self,rotation,translation):
         """
-        transfer the trajectory to another rigidly attached frame
+        transform the trajectory to another rigidly attached frame
         params:
             rotation: rotation matrix (axes of the new frame expressed in the current body frame) or euler angles (fixed-axis xyz)
             translation: position vector (origin of the new frame expressed in the current body frame)
@@ -94,7 +96,7 @@ class Trajectory():
         t = translation
 
         pos = self.translation.pos
-        R = self.rotation.R
+        R = self.rotation.rot.as_matrix()
         R_new = R@R_static # (n x 3 x 3) @ (1 x 3 x 3) = n x 3 x 3
         pos_new = pos + np.squeeze(R@t.reshape(1,3,1)) 
         # print(np.allclose(R,R_new))
@@ -102,20 +104,41 @@ class Trajectory():
         traj = Trajectory.from_arrays(pos_new,R_new,t=self.t)
         return traj
         
-    def to_file(self,dst,format='default'):
+    def to_file(self,path,jpl=True,delimiter=' '):
+        from datetime import datetime
+        now = datetime.now().strftime("%Y.%m.%d %H:%M:%S")
         """
         write trajectory to text file
         """
-        return NotImplemented
-    def from_file(self):
+        convention = ('hamilton','jpl')[int(jpl)]
+        _id = self.id
+        t = self.t.reshape(-1,1)
+        p = self.translation.pos
+        rot = self.rotation.rot
+        q = utils.q_conjugate(rot.as_quat()) if jpl else rot.as_quat()
+        header = 'timestamp(s), px, py, pz, qx, qy, qz, qw [INFO: file created: {}, trajectory id: {}, quaternion convention: {}]'.format(now,_id,convention)
+        data = np.hstack((t,p,q))
+
+        np.savetxt(path,data,fmt='%0.6f',delimiter=delimiter,header=header)
+        
+    
+    @classmethod
+    def from_file(cls, path, jpl=True, _id='traj'):
         """
         load trajectory from text file
         """
-        return NotImplemented
+        print('loading trajectory from file: {}, jpl: {}'.format(path,jpl))
+        data = np.loadtxt(path,delimiter=',',skiprows=0)
+        t = data[:,0]
+        p = data[:,1:4]
+        q = utils.q_conjugate(data[:,4:]) if jpl else data[:,4:]  
 
+        traj = Trajectory.from_arrays(p,q,t=t,_id=_id)
+        return traj
 
+        
     @classmethod
-    def from_arrays(cls, pos,rot,*, t=None, dur=None,vel=None,acc=None,name=None):
+    def from_arrays(cls, pos,rot,*, t=None, dur=None,vel=None,acc=None, _id='traj'):
         """
         initialize Trajectory object from arrays
         if rot is None, initialize with identity rotation
@@ -126,16 +149,23 @@ class Trajectory():
         translation = TranslationTrajectory(pos, t, dur)
         rotation = RotationTrajectory(rot, t, dur)
 
-        return cls(translation,rotation)
+        return cls(translation,rotation,_id=_id)
     
     @classmethod
     def config(cls, config):
-        traj_id = config['id']
+        _id = config['id']
+        if 'file' in config.keys():
+            return cls.from_file(config['file'],jpl=config['jpl'],_id=_id)
+            # if 'align' in config.keys():
+            #     align_type = config['align']
+            #     if align_type == 'best_fit':
+            #         translation_traj, rotation_traj = utils.align_trajectory(translation_traj,rotation_traj)
+            # return cls.from_arrays(translation_traj,rotation_traj,_id)
+        
         translation = config['translation']
         rotation = config['rotation']
-        
         if translation['type'] == 'bspline':
-            traj = BSpline(**translation['bspline'])
+            translation_traj = BSpline(**translation['bspline'])
         elif translation['type'] == 'from_file':
             pass
 
@@ -144,9 +174,46 @@ class Trajectory():
             flip = params['flip']
             axis = params['axis']
             grounded_axis = params['grounded_axis']
-            _with = {'pos': traj.pos, 'vel':traj.vel, 'acc': traj.acc}[params['with']]
+            _with = {'pos': translation_traj.pos, 'vel':translation_traj.vel, 'acc': translation_traj.acc}[params['with']]
             rots = utils.rotation_align_axis(axis,_with,grounded_axis,flip)
-            rotation_traj = RotationTrajectory(rots,dur=traj.dur)
+            rotation_traj = RotationTrajectory(rots,dur=translation_traj.dur)
 
-        return cls(traj,rotation_traj,traj_id)
+        return cls(translation_traj,rotation_traj,_id)
     
+class TrajectoryGroup():
+    """
+    group of related Trajectory objects - e.g. the ground truth and the estimate
+    """
+    def __init__(self, trajectories, reference):
+        
+        self.reference = reference
+        self.trajectories = trajectories
+        self.n = len(trajectories)
+        self.get_error()
+    
+    def get_error(self):
+        """
+        get error between reference and target trajectories
+        """
+        error = {}
+        trajectories = self.trajectories
+        ref = self.reference
+        for k,v in trajectories.items():
+            if k != ref:
+                # print(v.n)
+                error = TrajectoryError(v,trajectories[ref])
+                v.eval.add_sequence('error_pos',error.pos)
+                v.eval.add_sequence('error_angle',error.angle)
+                v.eval.rmse_pos = error.rmse_pos
+                v.eval.rmse_angle = error.rmse_angle
+        # return error
+
+    @classmethod
+    def config(cls, config):
+        reference = config['reference']
+        ct = config['trajectories']
+        trajectories = {}
+        for i in ct:
+            t = Trajectory.config(i)
+            trajectories[t.id] = t
+        return cls(trajectories,reference)
