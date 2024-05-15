@@ -1,5 +1,7 @@
 #!/usr/bin/env python 
 import numpy as np
+from math import factorial, comb
+np.set_printoptions(precision=4, suppress=True)
 
 
 class BSplineCore():
@@ -70,7 +72,7 @@ class BSplineCore():
             M = np.array([1.0])
         elif order==1:
             M = (1/6.0)*np.array([[1, 0],
-                                [-1, 1]],dtype=np.float64)
+                                  [-1, 1]],dtype=np.float64)
         elif order==2:
             M = (1/2.0)*np.array([[1,1,0],
                                 [-2,2,0],
@@ -81,13 +83,64 @@ class BSplineCore():
                                 [ 3, -6, 3, 0],
                                 [-1,  3,-3, 1]],dtype=np.float64)
         elif order==4:        
-            M = (1/24.0)*np.array([[1, 11, 11, 1, 0],
-                                    [-4, -12, 12, 4, 0],
-                                    [ 6, -6, -6, 6, 0],
-                                    [-4, 12, -12, 4, 0],
-                                    [ 1, -4, 6, -4, 1]],dtype=np.float64)
+            M = (1/24.0)*np.array([[  1,  11,  11,   1,   0],
+                                   [ -4, -12,  12,   4,   0],
+                                   [  6,  -6,  -6,   6,   0],
+                                   [ -4,  12, -12,   4,   0],
+                                   [  1,  -4,   6,  -4,   1]],dtype=np.float64)
+        elif order==5:
+            M = (1/120.0)*np.array([[  1,  26,  66,  26,   1,  0],
+                                    [ -5, -50,   0,  50,   5,  0],
+                                    [ 10,  20, -60,  20,  10,  0],
+                                    [-10,  20,   0, -20,  10,  0],
+                                    [  5, -20,  30, -20,   5,  0],
+                                    [ -1,   5, -10,  10,  -5,  1]],dtype=np.float64)
+            
+        elif order==6:
+            M = (1/720.0)*np.array([[   1,   57,  302,  302,   57,   1,  0],
+                                    [  -6, -150, -240,  240,  150,   6,  0],
+                                    [  15,  135, -150, -150,  135,  15,  0],
+                                    [ -20,  -20,  160, -160,   20,  20,  0],
+                                    [  15,  -45,   30,   30,  -45,  15,  0],
+                                    [  -6,   30,  -60,   60,  -30,   6,  0],
+                                    [   1,   -6,   15,  -20,   15,  -6,  1]],dtype=np.float64)
+
+        elif order==7:
+            M = (1/5040.0)*np.array([[   1,   120,  1191,  2416,  1191,  120,   1,  0],
+                                     [  -7,  -392, -1715,     0,  1715,  392,   7,  0],
+                                     [  21,   504,   315, -1680,   315,  504,  21,  0],
+                                     [ -35,  -280,   665,     0,  -665,  280,  35,  0],
+                                     [  35,     0,  -315,   560,  -315,    0,  35,  0],
+                                     [ -21,    84,  -105,     0,   105,  -84,  21,  0],
+                                     [   7,   -42,   105,  -140,   105,  -42,   7,  0],
+                                     [  -1,     7,   -21,    35,   -35,   21,  -7,  1]],dtype=np.float64)
+
         else:
-            #TODO: 5,6,7
-            raise ValueError('order must be 0,1,2,3, or 4')
+            raise ValueError('bspline order \'{}\' is invalid or not supported - must an integer between 2 and 7 inclusive.'.format(order))
         return M
     
+    @classmethod
+    def print_blending_matrix(cls,order):
+        """
+        print out the blending matrix 'M' for the given bspline order
+        params:
+            order(int)
+        """
+        k = order
+        M = np.zeros((k+1,k+1)).astype(int)
+        for i in range(k+1):
+            for j in range(k+1):
+                term = 0.0
+                for s in range(j,k+1):
+                    term += (-1)**(s-j)*comb(k+1,s-j)*(k-s)**(k-i)
+                M[i,j] = comb(k,k-i)*term
+        print('blending matrix for order {} bspline: \n M = (1/({}!)) * \n{}\n'.format(k,k,M))
+    
+
+if __name__ == '__main__':
+    BSplineCore.print_blending_matrix(2)
+    BSplineCore.print_blending_matrix(3)
+    BSplineCore.print_blending_matrix(4)
+    BSplineCore.print_blending_matrix(5)
+    BSplineCore.print_blending_matrix(6)
+    BSplineCore.print_blending_matrix(7)
