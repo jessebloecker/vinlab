@@ -4,16 +4,19 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 import motion_utils as utils
 from color_helper import ColorHelper
+import sys
+import logging
 
 class Feature():
-    def __init__(self, feats_id, lifetime=0, frame_id='global'):
+    def __init__(self, feats_id, _type, lifetime=0, frame_id='global'):
         self.id = feats_id
+        self.type = _type
         self.lifetime = lifetime
         self.frame_id = frame_id
     
 class PointSet(Feature):
-    def __init__(self, feats_id, points, colors=None):
-        super().__init__(feats_id, lifetime=0, frame_id='global')
+    def __init__(self, feats_id, _type, points, colors=None):
+        super().__init__(feats_id, _type, lifetime=0, frame_id='global')
         self.points = {self.frame_id : points} #should be a dictionary of numpy arrays for each frame
         self.n = len(points)
         if colors is None:
@@ -32,30 +35,63 @@ class PointSet(Feature):
         colors = ch.rainbow_sequence(n)
         return colors
     
+
     @classmethod
     def config(cls, config):
-        feats_id = config['id']
-        if config['type'] == 'point_set':
-            keyset = set(config.keys())
-            if {'points'} <= keyset:
+        _id = config['id']
+        keyset = set(config.keys())
+        required_keysets = {'point_set': set(['points']),
+                           'random_point_set': set(['center', 'radius', 'num']),
+                           'planar_point_set': set(['center', 'radius', 'normal'])} #also requires either num or grid_spacing
+        _type = config['type'].lower()
+        allowed_types = required_keysets.keys()
+        if _type not in allowed_types:
+            print('invalid type \'{}\' for feature id: \'{}\' - valid types are: {} '.format(_type,_id, ', '.join(allowed_types)))
+            sys.exit()
+        required_keyset = required_keysets[_type]
+
+        if required_keyset <= keyset:
+            if _type == 'point_set':
                 points = np.array(config['points']).astype(np.float32)
+                if {'center'} <= keyset:
+                    center = np.array(config['center']).astype(np.float32)
+                    points += center
+            
+            elif _type == 'random_point_set':
+                center = np.array(config['center']).astype(np.float32)
+                radius = config['radius']
+                n = config['num'] 
+                points = utils.random_point_set(n,radius,center)
 
-            if {'center', 'radius', 'num'} <= keyset: #generate 'num' random points, uniformly distributed                                           
-                n = config['num']                     #within in a sphere with 'center' and 'radius'
-                r_max = config['radius']
-                v = np.random.uniform(-1,1,(n,3))
-                u = (v.T/np.linalg.norm(v,axis=1)) #random unit vectors
-                r = np.cbrt(np.random.uniform(0,r_max**3,n)) #random scales, prevent clustering at center
-                c = np.array(config['center']).astype(np.float32)
-                points = np.multiply(u,r).T.astype(np.float32) + np.tile(c,(n,1))
-
-            if {'color'} <= keyset:
-                ch = ColorHelper('rgba',scale=255)
-                colors = ch.__dict__[config['color'].upper()]  
+            elif _type == 'planar_point_set':
+                radius = np.array(config['radius']).astype(np.float32)
+                center = np.array(config['center']).astype(np.float32)
+                normal = np.array(config['normal']).astype(np.float32)
+                if {'grid_spacing'} <= keyset:
+                    grid_spacing = np.array(config['grid_spacing']).astype(np.float32)
+                    points = utils.planar_point_set(radius, center, normal,grid_spacing=grid_spacing)
+                elif {'num'} <= keyset:
+                    n = config['num']
+                    points = utils.planar_point_set(radius, center, normal,n)
+                else:
+                    print('provide either num or grid_spacing for {} \'{}\''.format(_type,_id))
+                    sys.exit()
             else:
-                colors = None
+                logging.error('invalid type \'{}\' for feature id: \'{}\' - valid types are: {} '.format(_type,_id, ', '.join(required_keysets.keys())))
+                # print('invalid type \'{}\' for feature id: \'{}\' - valid types are: {} '.format(_type,_id, ', '.join(required_keysets.keys())))
+                sys.exit()
 
-        return cls(feats_id,points,colors)
+        else:
+            print('missing or invalid parameters for {} \'{}\' - required: {}'.format(_type,_id, ', '.join(required_keyset)))
+            sys.exit()
+    
+        if {'color'} <= keyset:
+            ch = ColorHelper('rgba',scale=255)
+            colors = ch.__dict__[config['color'].upper()]  
+        else:
+            colors = None
+
+        return cls(_id, _type, points, colors)
     
 class Plane(Feature):
     def __init__(self, center, normal, radius):
@@ -74,5 +110,4 @@ class Plane(Feature):
                 radius = np.array(config['radius']).astype(np.float32)
         return cls(feats_id,center,normal,radius)
     
-
 
