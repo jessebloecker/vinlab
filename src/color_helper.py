@@ -24,6 +24,7 @@ class ColorHelper():
     BLUE_PURPLE   = np.array([111,3,252], dtype=np.uint8)
     PURPLE        = np.array([160,32,240], dtype=np.uint8)
     DARK_PURPLE   = np.array([72,16,107], dtype=np.uint8)
+    PINK          = np.array([255,0,255], dtype=np.uint8)
     GOLD          = np.array([145,129,0], dtype=np.uint8)
 
     def __init__(self, format='rgb', scale=255, dtype=None, alpha=None):
@@ -55,12 +56,13 @@ class ColorHelper():
         self.BLUE_PURPLE = ColorHelper.BLUE_PURPLE
         self.PURPLE = ColorHelper.PURPLE
         self.DARK_PURPLE = ColorHelper.DARK_PURPLE
+        self.PINK = ColorHelper.PINK
         self.GOLD = ColorHelper.GOLD
 
 
         self.RAINBOW_12 = np.vstack((self.RED, self.RED_ORANGE, self.ORANGE, self.ORANGE_YELLOW, self.YELLOW, self.YELLOW_GREEN,
                                    self.GREEN, self.GREEN_BLUE, self.CYAN,self.BLUE, self.BLUE_PURPLE, self.PURPLE))
-        self.RAINBOW_20 = np.vstack((self.RAINBOW_12, self.DARK_RED, self.DARK_GREEN, self.DARK_BLUE, self.DARK_PURPLE,
+        self.RAINBOW_21 = np.vstack((self.RAINBOW_12, self.DARK_RED, self.DARK_GREEN, self.DARK_BLUE, self.DARK_PURPLE, self.PINK,
                                     self.GREY, self.DARK_GREY, self.BROWN, self.GOLD))
         
         self.RAINBOW = self.RAINBOW_12
@@ -95,10 +97,9 @@ class ColorHelper():
 
     def rainbow_sequence(self,n):
         """
-        return n x 3 array cycling through the colors in self.RAINBOW_20
+        return n x 3 array cycling through the colors in self.RAINBOW_21
         """
         out = np.zeros((n,3))
         for i in range(n):
-            out[i,:] = self.RAINBOW_20[i%20,:]
-
-        return out.astype(np.uint8)  
+            out[i,:] = self.RAINBOW_21[i%20,:]
+        return out.astype(np.uint8)
