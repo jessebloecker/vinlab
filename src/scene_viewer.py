@@ -27,6 +27,7 @@ np.set_printoptions(threshold=sys.maxsize,suppress=True,precision=3,linewidth=10
 class SceneViewer(Node):
     def __init__(self):
         super().__init__('scene_viewer')
+    
         self.declare_params()
         scene_config =  self.get_parameter('scene').get_parameter_value().string_value
         if not scene_config:
@@ -34,22 +35,32 @@ class SceneViewer(Node):
                                     'ros2 run motion_tools scene_viewer.py --ros-args --params-file path/to/scene_viewer.yaml')
             sys.exit()
         self.scene = Scene.config(scene_config)
+        self.scene.print_scene_info()
+
+        tg = self.scene.trajectory_group
+        self.traj_ref = tg.trajectories[tg.reference]
+        if tg.n > 1:
+            self.traj_est = tg.trajectories[list(tg.trajectories.keys()).remove(tg.reference)[0]] #default to the first trajectory in the group, other than the reference
+            self.get_logger().info(': reference trajectory: \'{}\', estimated trajectory: {}'.format(self.traj_ref.id, self.traj_est.id))
+        else:
+            self.get_logger().info(': reference trajectory: \'{}\', estimated trajectory: None'.format(self.traj_ref.id))
+            self.traj_est = self.traj_ref
+
 
         p,s = self.init_pub_sub()
         self.pub = p
         self.sub = s
         self.messages = self.get_messages()
 
-        
-        self.playing = False
-        # self.playing = True
+        # self.playing = False
+        self.playing = True
 
         slow_rate = self.get_parameter('slow_rate').get_parameter_value().double_value
         fast_rate = self.get_parameter('fast_rate').get_parameter_value().double_value
         self.start_timers(slow_rate,fast_rate)
 
         self.i = 0
-        self.increment = float(1/self.scene.trajectory.n)
+        self.increment = float(1/self.traj_ref.n)
 
         
     def declare_params(self):
@@ -68,7 +79,7 @@ class SceneViewer(Node):
         """
         initialize publishers and subscribers
         """
-        traj = self.scene.trajectory
+        traj = self.traj_ref
         now = self.get_clock().now().nanoseconds
         
         sub_slider = self.create_subscription(Float32,'/slider/value',self.slider_cb,10)
@@ -76,6 +87,7 @@ class SceneViewer(Node):
         publishers = {}
         publishers['index_markers'] = self.create_publisher(MarkerArray,'~/index_markers', 10)
         publishers['transforms'] = tf2_ros.TransformBroadcaster(self)
+        publishers['static_transforms'] = tf2_ros.StaticTransformBroadcaster(self)
         publishers['paths'] = {'pos': self.create_publisher(Marker,'~/'+traj.id+'/pos',10)}
         publishers['features'] = self.create_publisher(MarkerArray,'~/features',10)
         publishers['feature_measurements'] = self.create_publisher(Int16MultiArray,'~/feature_measurements',10)
@@ -98,24 +110,29 @@ class SceneViewer(Node):
         Convert trajectory to Path messages, list of transforms, and list of marker arrays
         corresponding to each time step in the trajectory
         """
-        traj = self.scene.trajectory
+        traj = self.traj_ref
+        traj_est = self.traj_est
+
         features = self.scene.features
         meas = self.scene.measurements['cam0']
         sensors = self.scene.platform.sensors
+        # num_frames = self.scene.platform.num_frames
+        
         # feature_measurements= meas.swapaxes(1,2).reshape(2*meas.shape[0],meas.shape[1]).astype(np.int16)
-        body_frame = traj.body_frame
+        moving_frame = traj.moving_frame
 
-        messages = {'paths':{'pos': rmh.as_marker_msg(frame_id=traj.frame, scale=[0.05]*3, marker_type=4),
-                             'vel': rmh.as_path_msg(frame_id=traj.frame), 
-                             'acc': rmh.as_path_msg(frame_id=traj.frame),
-                             'angvel': rmh.as_path_msg(frame_id=traj.frame),
-                             'angacc': rmh.as_path_msg(frame_id=traj.frame)},
-                    # 'index_markers':rmh.as_marker_msg(frame_id=traj.frame, scale=rmh.as_vector3_msg([0.25]*3), marker_type=7),
+        messages = {'paths':{'pos': rmh.as_marker_msg(frame_id=traj.global_frame, scale=[0.05]*3, marker_type=4),
+                             'vel': rmh.as_path_msg(frame_id=traj.global_frame), 
+                             'acc': rmh.as_path_msg(frame_id=traj.global_frame),
+                             'angvel': rmh.as_path_msg(frame_id=traj.global_frame),
+                             'angacc': rmh.as_path_msg(frame_id=traj.global_frame)},
+                    # 'index_markers':rmh.as_marker_msg(frame_id=traj.global_frame, scale=rmh.as_vector3_msg([0.25]*3), marker_type=7),
                     'index_markers': [],
-                    'transforms':[], 
+                    'transforms':[],
+                    'static_transforms':[],
                     'mark': Float32(),
                     'index': Int16(),
-                    'features':rmh.as_markerarray_msg(frame_id=traj.frame,n=len(features),marker_type=7, scale=[0.05]*3),
+                    'features':rmh.as_markerarray_msg(frame_id=traj.global_frame,n=len(features),marker_type=7, scale=[0.05]*3),
                     'camera_infos': [] }
                     # 'feature_measurements':rmh.as_int16multiarray_msg(feature_measurements)}
         
@@ -146,6 +163,10 @@ class SceneViewer(Node):
         messages['feature_colors'] = feature_colors_msg
 
 
+        for k,v in sensors.items():
+            if not k==traj.moving_frame:
+                static_tf_msg = rmh.as_transformstamped_msg(0, traj.moving_frame, k, v.pos, v.rot.as_quat())
+                messages['static_transforms'].append(static_tf_msg)
 
         for k,v in sensors.items():
             if v.type == 'camera' and v.enable_measurements:
@@ -164,8 +185,8 @@ class SceneViewer(Node):
         color_min = ch.__dict__[(self.get_parameter('colors.trajectory.color_min').get_parameter_value().string_value).upper()]
         color_max = ch.__dict__[(self.get_parameter('colors.trajectory.color_max').get_parameter_value().string_value).upper()]
         color_features = ch.__dict__[(self.get_parameter('colors.features').get_parameter_value().string_value).upper()]
-        colors = utils.linear_path(color_min, color_max, color_res)
-        magnitudes = traj.eval.normalized_magnitudes[self.get_parameter('colors.trajectory.wrt').get_parameter_value().string_value]
+        colors = utils.linear_interp(color_min, color_max, color_res)
+        magnitudes = traj_est.eval.normalized_norms[self.get_parameter('colors.trajectory.wrt').get_parameter_value().string_value]
      
     
         q_all = traj.rotation.rot.as_quat() #hamiltonian quaternions
@@ -182,11 +203,12 @@ class SceneViewer(Node):
             messages['paths']['pos'].points.append(rmh.as_point_msg(p))
             messages['paths']['pos'].colors.append(rmh.as_color_msg(colors[int((color_res-1)*magnitudes[i])]))
             messages['index_markers'].append(rmh.as_markerarray_msg(frame_id=traj.id,pos=(p,v,a,w,aa)))
-            messages['transforms'].append(rmh.as_transformstamped_msg(t, traj.frame, body_frame, p, q))
-            messages['paths']['vel'].poses.append(rmh.as_posestamped_msg(t, traj.frame, v))
-            messages['paths']['acc'].poses.append(rmh.as_posestamped_msg(t, traj.frame, a))
-            messages['paths']['angvel'].poses.append(rmh.as_posestamped_msg(t, traj.frame, w))
-            messages['paths']['angvel'].poses.append(rmh.as_posestamped_msg(t, traj.frame, aa))
+            messages['paths']['vel'].poses.append(rmh.as_posestamped_msg(t, traj.global_frame, v))
+            messages['paths']['acc'].poses.append(rmh.as_posestamped_msg(t, traj.global_frame, a))
+            messages['paths']['angvel'].poses.append(rmh.as_posestamped_msg(t, traj.global_frame, w))
+            messages['paths']['angvel'].poses.append(rmh.as_posestamped_msg(t, traj.global_frame, aa))
+            
+            messages['transforms'].append(rmh.as_transformstamped_msg(t, traj.global_frame, moving_frame, p, q))
 
         i = 0
         for k,v in features.items():
@@ -208,6 +230,7 @@ class SceneViewer(Node):
         self.create_timer(1.0/slow_rate, self.publish_features, callback_group=slow_group)
         self.create_timer(1.0/slow_rate, self.publish_feature_measurements, callback_group=slow_group)
         self.create_timer(1.0/slow_rate, self.publish_camera_infos, callback_group=slow_group)
+        self.create_timer(1.0/slow_rate, self.broadcast_static_transforms, callback_group=slow_group)
         
         self.create_timer(1.0/fast_rate, self.index_select, callback_group=fast_group) 
         self.create_timer(1.0/fast_rate, self.broadcast_transform, callback_group=fast_group) 
@@ -221,7 +244,7 @@ class SceneViewer(Node):
         or based on slider position in gui (not implemented yet)
         """
         if self.playing:
-            traj = self.scene.trajectory
+            traj = self.traj_ref
             T = traj.dur*1e9 #duration in nanoseconds
             t0 = self.t0 
 
@@ -258,6 +281,12 @@ class SceneViewer(Node):
         msg = self.messages['transforms'][i]
         msg.header.stamp = now.to_msg()
         pub.sendTransform((msg))
+
+    def broadcast_static_transforms(self):
+        pub = self.pub['static_transforms']
+        msgs = self.messages['static_transforms']
+        for msg in msgs:
+            pub.sendTransform(msg)
 
     def publish_features(self):
         """

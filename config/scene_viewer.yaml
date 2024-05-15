@@ -1,27 +1,15 @@
 scene_viewer:
   ros__parameters:
-    scene: '/home/jesse/ros2_ws/src/motion_tools/config/example_config.yaml'
+    scene: '/home/jesse/ros2_ws/src/vinlab/config/example_config.yaml'
     loop: true
     playback_speed: 1.0
     start_gui: true
     slow_publish_rate: 1 #messages that are the same every time step (paths, features point markers)
     fast_publish_rate: 30 #messages that change every time step (transforms, current index marker)
     max_size: 10000 # max number of poses in a path (or marker array) message
-    # index_markers: #markers that show the current value of each of the trajectory components
-    #   # - 'pos'
-    #   - 'vel'
-    #   # - 'acc'
-    #   # - 'ang_vel'
-    #   # - 'ang_acc'
     colors:
       trajectory:
-          wrt: vel #which quantity in the trajectory to map to color (pos,vel,acc,ang_vel,ang_acc, time error_RTE, error_ATE, error_aligned_ATE
+          wrt: vel #which quantity in the trajectory to map to color (pos,vel,acc,ang_vel,ang_acc, time, error_RTE, error_ATE, error_aligned_ATE
           res: 200 #number of colors in the color map
           color_min: green
           color_max: red
-      
-
-bspline_editor:
-  ros__parameters:
-    bspline: '/home/jesse/ros2_ws/src/motion_tools/config/example_config.yaml'
-  
