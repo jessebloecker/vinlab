@@ -378,7 +378,7 @@ def init_trajectory_timestamps(n, t=None, dur=None):
         raise ValueError('must provide either a duration or an array of time stamps')
     return _t, _dur
 
-def linear_interp(a,b,n):
+def linear_interp(a,b,n): # TODO change this to (n,*args) so that it can interpolate between multiple vectors
     """
     compute linear interpolation with 'n' steps from vector 'a' to vector 'b', including 'a' and 'b'
     returns: array of shape (n,3)
@@ -386,6 +386,14 @@ def linear_interp(a,b,n):
    
     t = np.linspace(0,1,n).reshape(-1,1)
     return (1-t)*a + t*b
+
+def linear_interp_so3(a,b,n):
+    """
+    compute linear interpolation with 'n' steps from rotation matrix 'a' to rotation matrix 'b', including 'a' and 'b'
+    returns: array of shape (n,3,3)
+    """
+    R = Rotation.from_matrix([a,b])
+    return R.as_matrix()
 
 def get_correspondences(frame_id, index):
     pass
