@@ -1,8 +1,6 @@
 #!/usr/bin/env python 
 import numpy as np
-from math import factorial, comb
-np.set_printoptions(precision=4, suppress=True)
-
+from math import comb
 
 class BSplineCore():
     """
@@ -138,6 +136,7 @@ class BSplineCore():
     
 
 if __name__ == '__main__':
+    np.set_printoptions(precision=4, suppress=True)
     BSplineCore.print_blending_matrix(2)
     BSplineCore.print_blending_matrix(3)
     BSplineCore.print_blending_matrix(4)
