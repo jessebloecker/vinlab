@@ -1,8 +1,7 @@
 #!/usr/bin/env python 
 
 import numpy as np
-from scipy.spatial.transform import Rotation
-import motion_utils as utils
+from geometry_utils import random_point_set, planar_point_set
 from color_helper import ColorHelper
 import sys
 import logging
@@ -61,7 +60,7 @@ class PointSet(Feature):
                 center = np.array(config['center']).astype(np.float32)
                 radius = config['radius']
                 n = config['num'] 
-                points = utils.random_point_set(n,radius,center)
+                points = random_point_set(n,radius,center)
 
             elif _type == 'planar_point_set':
                 radius = np.array(config['radius']).astype(np.float32)
@@ -69,10 +68,10 @@ class PointSet(Feature):
                 normal = np.array(config['normal']).astype(np.float32)
                 if {'grid_spacing'} <= keyset:
                     grid_spacing = np.array(config['grid_spacing']).astype(np.float32)
-                    points = utils.planar_point_set(radius, center, normal,grid_spacing=grid_spacing)
+                    points = planar_point_set(radius, center, normal,grid_spacing=grid_spacing)
                 elif {'num'} <= keyset:
                     n = config['num']
-                    points = utils.planar_point_set(radius, center, normal,n)
+                    points = planar_point_set(radius, center, normal,n)
                 else:
                     print('provide either num or grid_spacing for {} \'{}\''.format(_type,_id))
                     sys.exit()

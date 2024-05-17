@@ -3,6 +3,8 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
 import motion_utils as utils
+from geometry_utils import as_scipy_rotation
+from config_utils import config_transform
 
 class SensorPlatform():
     """
@@ -35,8 +37,8 @@ class SensorPlatform():
         rot, pos = base.rot, base.pos
         base_is_identity = np.allclose(rot.as_matrix(),np.eye(3)) and np.allclose(pos,np.zeros(3))
         if not base_is_identity:
-            # print(self.__class__.__name__+': base_frame \'{}\' transform must be the identity, setting to identity...'.format(self.base_frame))
-            base.rot = utils.as_scipy_rotation(np.eye(3))
+            print(self.__class__.__name__+': base_frame \'{}\' transform must be identity, setting to identity...'.format(self.base_frame))
+            base.rot = as_scipy_rotation(np.eye(3))
             base.pos = np.zeros(3)
 
         
@@ -116,7 +118,7 @@ class Sensor():
         sensor_id = config['id']
         enable_measurements = config['enable_measurements']
         rate = config['rate']
-        rot,pos = utils.config_transform(config['transform'])
+        rot,pos = config_transform(config['transform'])
 
         if 'from' in config['transform'].keys():
             resolve_transform_from = config['transform']['from']
@@ -214,7 +216,7 @@ class BodyFrame():
     @classmethod
     def config(cls, config):
         frame_id = config['id']
-        rot,pos = utils.config_transform(config['transform'])
+        rot,pos = config_transform(config['transform'])
 
         return cls(frame_id, rot, pos)
 

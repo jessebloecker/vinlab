@@ -17,7 +17,7 @@ from trajectory import Trajectory
 from scene import Scene
 import yaml
 from scipy.spatial.transform import Rotation
-import motion_utils as utils
+from geometry_utils import linear_interp
 from color_helper import ColorHelper
 from std_msgs.msg   import *
 import tkinter as tk
@@ -64,7 +64,6 @@ class SceneViewer(Node):
 
         
     def declare_params(self):
-
         self.declare_parameter('scene','')
         self.declare_parameter('loop',False)
         self.declare_parameter('slow_rate',1.0)
@@ -162,7 +161,6 @@ class SceneViewer(Node):
         feature_colors_msg.data = feature_colors.flatten().tolist()
         messages['feature_colors'] = feature_colors_msg
 
-
         for k,v in sensors.items():
             if not k==traj.moving_frame:
                 static_tf_msg = rmh.as_transformstamped_msg(0, traj.moving_frame, k, v.pos, v.rot.as_quat())
@@ -179,27 +177,29 @@ class SceneViewer(Node):
                 camera_info_msg.d = [0.0, 0.0, 0.0, 0.0, 0.0]
                 messages['camera_infos'].append(camera_info_msg)
 
-
         ch = ColorHelper('rgba',scale=1)
         color_res = self.get_parameter('colors.trajectory.res').get_parameter_value().integer_value
         color_min = ch.__dict__[(self.get_parameter('colors.trajectory.color_min').get_parameter_value().string_value).upper()]
         color_max = ch.__dict__[(self.get_parameter('colors.trajectory.color_max').get_parameter_value().string_value).upper()]
-        color_features = ch.__dict__[(self.get_parameter('colors.features').get_parameter_value().string_value).upper()]
-        colors = utils.linear_interp(color_min, color_max, color_res)
-        magnitudes = traj_est.eval.normalized_norms[self.get_parameter('colors.trajectory.wrt').get_parameter_value().string_value]
+        colors = linear_interp(color_min, color_max, color_res)
+        
+        color_map_wrt = self.get_parameter('colors.trajectory.wrt').get_parameter_value().string_value
+        if color_map_wrt in ['pos', 'vel', 'acc']:
+            magnitudes = traj_est.translation.__dict__[color_map_wrt].normalized_norms
+        else:
+            self.get_logger().warn('trajectory color with respect to unknown quantity: \'{}\', ignoring...'.format(color_map_wrt))
+            magnitudes = np.zeros(traj.n)
      
-    
         q_all = traj.rotation.rot.as_quat() #hamiltonian quaternions
-
         for i in range(traj.n):
             t = traj.t[i]
-            p = traj.translation.pos[i]
-            v = traj.translation.vel[i]
-            a = traj.translation.acc[i]
-            w = traj.rotation.angvel[i]
-            aa = traj.rotation.angacc[i]
+            p = traj.translation.pos.values[i]
+            v = traj.translation.vel.values[i]
+            a = traj.translation.acc.values[i]
+            w = traj.rotation.angvel.values[i]
+            aa = traj.rotation.angacc.values[i]
             q = q_all[i]
-
+    
             messages['paths']['pos'].points.append(rmh.as_point_msg(p))
             messages['paths']['pos'].colors.append(rmh.as_color_msg(colors[int((color_res-1)*magnitudes[i])]))
             messages['index_markers'].append(rmh.as_markerarray_msg(frame_id=traj.id,pos=(p,v,a,w,aa)))
@@ -207,7 +207,6 @@ class SceneViewer(Node):
             messages['paths']['acc'].poses.append(rmh.as_posestamped_msg(t, traj.global_frame, a))
             messages['paths']['angvel'].poses.append(rmh.as_posestamped_msg(t, traj.global_frame, w))
             messages['paths']['angvel'].poses.append(rmh.as_posestamped_msg(t, traj.global_frame, aa))
-            
             messages['transforms'].append(rmh.as_transformstamped_msg(t, traj.global_frame, moving_frame, p, q))
 
         i = 0

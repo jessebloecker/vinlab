@@ -2,10 +2,9 @@
 
 import numpy as np
 import yaml
-from trajectory import Trajectory, TrajectoryGroup
+from trajectory import TrajectoryGroup
 from sensor_platform import SensorPlatform
-from features import PointSet, Plane
-from scipy.linalg import block_diag
+from features import PointSet
 
 np.set_printoptions(precision=4, suppress=True)
 
@@ -104,7 +103,7 @@ class Scene():
         K = cam.K #camera matrix
 
         gPgf = features.points['global'] # m x 3
-        gPgc = cam_traj.translation.pos # n x 3
+        gPgc = cam_traj.translation.pos.values # n x 3
         gRc = cam_traj.rotation.rot.as_matrix() # n x 3 x 3
 
         assert gPgf.shape == (m,3)
