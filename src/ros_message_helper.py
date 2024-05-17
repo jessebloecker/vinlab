@@ -142,7 +142,7 @@ def as_transformstamped_msg(stamp,frame_id,child_frame_id,pos,rot):
 
 def as_vector3_msg(vec):
     v = Vector3()
-    v.x, v.y, v.z = vec
+    v.x, v.y, v.z = vec.astype(float)
     return v
 
 
