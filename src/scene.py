@@ -2,9 +2,10 @@
 
 import numpy as np
 import yaml
-from trajectory import TrajectoryGroup
+from trajectory_group import TrajectoryGroup
 from sensor_platform import SensorPlatform
-from features import PointSet
+from feature import Feature, PointSet
+from config_utils import check_keys
 
 np.set_printoptions(precision=4, suppress=True)
 
@@ -27,7 +28,7 @@ class Scene():
         #combine all features
         all_points = np.vstack([f.points['global'] for f in features.values() if isinstance(f,PointSet)])
         all_colors = np.vstack([f.colors for f in features.values() if isinstance(f,PointSet)])
-        self.features['all'] = PointSet('all', 'point_set', all_points, all_colors)
+        self.features['all'] = PointSet(all_points, colors=all_colors, feature_id='all', feature_type='points')
 
         #for each camera, get all features expressed in the camera frame at all times
         for k,v in platform.sensors.items():
@@ -55,22 +56,19 @@ class Scene():
         """
         Initialize a Scene instance from a config file
         """
-        config = yaml.load(open(config_file),Loader=yaml.FullLoader)
-        # config = utils.remove_nonetype(yaml.load(open(config_file),Loader=yaml.FullLoader))
+        config = check_keys('scene',yaml.load(open(config_file),Loader=yaml.FullLoader))[1]
         trajectory_group = TrajectoryGroup.config(config['trajectory_group'])
         platform = SensorPlatform.config(config['platform'])
 
-
-        cf = config['features']
-        features = {}
-        for i in range(len(cf)):
-            feat_type = cf[i]['type']
-            f = PointSet.config(cf[i])
-            features[f.id] = f
+        if 'features' in config.keys():
+            cf = config['features']
+            features = {}
+            for i in range(len(cf)):
+                f = Feature.config(cf[i])
+                features[f.id] = f
 
         return cls(config_file, trajectory_group, platform, features)
     
-
     def get_feature_positions(self, frame_id, feats_id='all', start=0.0):
         """
         transform all features into frame_id frame at all times
@@ -95,7 +93,7 @@ class Scene():
         else:
             tf = cam.rot, cam.pos
             # print('\'{}\' is not the base frame, using tf:\n R:{}\np:{}'.format(frame_id,cam.rot.as_matrix(),cam.pos))
-            cam_traj = trajectory.subsample(rate,start=start).transform(*tf)
+            cam_traj = trajectory.subsample(rate,start=start).transfer(*tf)
         # print('orig trajectory: {} poses, cam trajectory: {} poses'.format(trajectory.n,cam_traj.n))
         
         n = cam_traj.n #number of poses
@@ -193,14 +191,7 @@ class Scene():
         pass
 
     def get_correspondences(frame1,time1,frame2=None,time2=None):
-
-        # scene.features.points['cam0'] = n x m x 3 3d points in cam0 frame at all times
-        # scene.features.colors = m x 3 colors of all points
-        # scene.measurements['cam0'] = 2n x m 2d points in cam0 frame at all times
-        # scene.get_correspondences('3d2d', cam0',t1) = 5 x m
-        # scene.get_correspondences('2d2d', cam0',t1,cam0',t1+1) = 4 x m
-
-        pass
+        raise NotImplementedError
 
         
     def print_scene_info(self,output_file=None):
@@ -219,15 +210,17 @@ class Scene():
 
         tg = self.trajectory_group
         ids = ', '.join([i for i in tg.trajectories.keys()])
-        ref = ['',tg.reference]
         print(('{}'+BOLDYELLOW+'Trajectories: '+END+'\'{}\'').format(indent,ids))
         for t in tg.trajectories.values():
-            _id = '[REF] '+t.id if t.id==tg.reference else t.id
+            if t.id == tg.reference:
+                _id = '[REF] '+t.id
+            elif t.id == tg.main:
+                _id = '[MAIN] '+t.id
+            else:
+                _id = t.id
             print(('{}'+YELLOW+'{}'+END).format(indent*2,_id))
             print(('{}'+PURPLE+'poses'+END+': {} '+PURPLE+'duration'+END+': {:0.3f} '+PURPLE+'rate'+END+': {:0.3f} '+PURPLE+'dt'+END+': {:0.3f}')
             .format(indent*2,t.n,t.dur,t.rate,t.dt))
-            # print(('{}'+PURPLE+'rmse_pos'+END+': {} '+PURPLE+'rmse_angle'+END+': {:0.3f} ')
-            # .format(indent*2,t.eval.rmse_pos,t.eval.rmse_angle))
         p = self.platform
         cameras = [v for k,v in p.sensors.items() if v.type == 'camera']
         imus = [v for k,v in p.sensors.items() if v.type == 'imu']

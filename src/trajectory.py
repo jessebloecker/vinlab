@@ -5,17 +5,19 @@ from rotation_trajectory import RotationTrajectory
 from geometry_utils import as_scipy_rotation, rotation_align_axis
 from array_utils import q_conjugate
 from row_vector_array import RowVectorArray
-
-
-from trajectory_eval import TrajectoryEval, TrajectoryError
+from trajectory_eval import TrajectoryEval
+from trajectory_error import TrajectoryError
+from config_utils import check_keys
 
 class Trajectory():
     """
     Initialize with TranslationTrajectory and RotationTrajectory objects 
     or from arrays of positions and rotations
     """
-    def __init__(self, translation, rotation, _id='traj', is_reference=False):
+    def __init__(self, translation, rotation, _id='traj', super_id=None, is_reference=False):
         self.id = _id
+        self.super_id = super_id #id of the parent trajectory (trajectory that this one is based on) if it exists
+        self.sub_ids = None #list of ids of the trajectories that this one is based on
         self.is_reference = is_reference
         self.global_frame = 'global'
         self.moving_frame = 'imu0'
@@ -36,6 +38,7 @@ class Trajectory():
         n = translation.n
         self.body_vel = RowVectorArray((R.swapaxes(1,2)@vel.reshape(n,3,1)).reshape(n,3))
         self.body_acc = RowVectorArray((R.swapaxes(1,2)@acc.reshape(n,3,1)).reshape(n,3))
+
         
     def normalize_timestamps(self):
         """
@@ -52,7 +55,7 @@ class Trajectory():
             rate: sampling rate in Hz (if <=0, use all samples)
             start: starting time in seconds
             interpolate: if True, enforce exact rate, linearly interpolate poses between samples
-                         if False, subsample at closest possible rate with existing poses/timestamps
+                         if False, ssceneubsample at closest possible rate with existing poses/timestamps
         returns:
             traj_sub: new Trajectory object at a subsampled rate
         """
@@ -85,9 +88,13 @@ class Trajectory():
         traj_sub = Trajectory.from_arrays(pos_sub,R_sub,t=t_sub)
         return traj_sub
     
-    def transform(self,rotation,translation):
+    def transfer(self,rotation,translation):
         """
-        transform the trajectory to another rigidly attached frame
+        should call this something else, like 'transfer', and have another method that 
+        transforms the trajectory to another fixed frame
+
+        transform the trajectory to another rigidly attached frame - apply relative transform at every time step - express result in global frame
+        return the new trajectory expressed in the global frame
         params:
             rotation: rotation matrix (axes of the new frame expressed in the current body frame) or euler angles (fixed-axis xyz)
             translation: position vector (origin of the new frame expressed in the current body frame)
@@ -110,6 +117,18 @@ class Trajectory():
        
         traj = Trajectory.from_arrays(pos_new,R_new,t=t)
         return traj
+    
+    def rotate_about(self, about, rotation):
+        """
+        rotate the entire trajectory about a fixed global point
+        """
+        raise NotImplementedError
+
+    def shift(self,translation):
+        """
+        shift the trajectory by a fixed global translation
+        """
+        raise NotImplementedError
         
     def to_file(self,path,jpl=True,delimiter=' '):
         from datetime import datetime
@@ -130,20 +149,35 @@ class Trajectory():
         
     
     @classmethod
-    def from_file(cls, path, jpl=True, _id='traj'):
+    def from_file(cls, path, _format, time_unit, jpl=None, _id='traj'):
         """
         load trajectory from text file
         """
-        print('loading trajectory from file: {}, jpl: {}'.format(path,jpl))
-        data = np.loadtxt(path,delimiter=',',skiprows=0)
-        t = data[:,0]
-        p = data[:,1:4]
-        q = q_conjugate(data[:,4:]) if jpl else data[:,4:]  
+        print('loading trajectory from file: {}'.format(path))
+        req = ['t','x','y','z','qx','qy','qz','qw']
+        delimiter = ' ' if ' ' in list( _format) else ','
+        f = [i for i in _format.split(delimiter) if i in req+['-']] #format list, filter out invalid characters/extra spaces
+        if len(f) < 8:
+            raise ValueError('invalid format string - must contain {}'.format(' '.join(req)))
+        time_units = {'s':1,'ms':1e-3,'us':1e-6,'ns':1e-9}
+        if time_unit not in time_units.keys():
+            raise ValueError('invalid time unit - must be s, ms, us, or ns')
 
+        
+        data = np.loadtxt(path, delimiter=',',skiprows=0)
+        initial_time = data[0,0]
+        t = (data[:,f.index('t')] - initial_time)*time_units[time_unit]
+        # print(t)
+        p = data[:,[f.index('x'),f.index('y'),f.index('z')]]
+        q =  data[:,[f.index('qx'),f.index('qy'),f.index('qz'),f.index('qw')]] 
+        if jpl is None:
+            raise ValueError('quaternion convention not specified for id: \'{}\': set jpl to True or False'.format(_id))
+        else:
+            q = q_conjugate(q) if jpl else q
         traj = Trajectory.from_arrays(p,q,t=t,_id=_id)
         return traj
 
-        
+      
     @classmethod
     def from_arrays(cls, pos,rot,*, t=None, dur=None,vel=None,acc=None, _id='traj'):
         """
@@ -160,67 +194,91 @@ class Trajectory():
     
     @classmethod
     def config(cls, config):
+        config_mode, config = check_keys('trajectory',config)
         _id = config['id']
-        if 'file' in config.keys():
-            return cls.from_file(config['file'],jpl=config['jpl'],_id=_id)
-            # if 'align' in config.keys():
-            #     align_type = config['align']
-            #     if align_type == 'best_fit':
-            #         translation_traj, rotation_traj = utils.align_trajectory(translation_traj,rotation_traj)
-            # return cls.from_arrays(translation_traj,rotation_traj,_id)
-        
-        translation = config['translation']
-        rotation = config['rotation']
-        if translation['type'] == 'bspline':
-            translation_traj = BSpline(**translation['bspline'])
-        elif translation['type'] == 'from_file':
-            pass
+        if config_mode=={'translation','rotation'}:
+         
+            ct = config['translation']
+            translation_traj = TranslationTrajectory.config(ct) #returns TranslationTrajectory object if independent, otherwise returns the config 
+            dependent_translation = True if translation_traj == ct else False
+       
+            cr = config['rotation'] 
+            rotation_traj = RotationTrajectory.config(cr) #returns RotationTrajectory object if independent, otherwise returns the config 
+            dependent_rotation = True if rotation_traj == cr else False
+            
+            if 'constant' in cr.keys() and 'constant' in ct.keys():
+                raise ConfigurationError('translation and rotation cannot both be constant. Define a fixed frame instead.')
+                    
+            if dependent_translation:
+                raise NotImplementedError
+            
+            if dependent_rotation:
+                if 'align_axis' in cr.keys():
+                    align_axis = cr['align_axis']
+                    align_axis_config  = check_keys('align_axis',cr['align_axis'])[1]
+                    vec_config = check_keys('vec', align_axis_config.pop('vec'))[1]
+                    if 'current_trajectory' in vec_config:
+                        name = vec_config['current_trajectory']
+                        vec_array = {
+                            'pos': translation_traj.pos.values, #swap the name with actual array it refers to
+                            'vel': translation_traj.vel.values, 
+                            'acc': translation_traj.acc.values,
+                            'centroid': translation_traj.bearing_vectors(translation_traj.centroid)}[name]
+                    elif 'point' in vec_config:
+                        vec_array = np.array(vec_config['point']) - translation_traj.pos.values
+                    if 'negate' in vec_config:
+                        vec_array = -vec_array
+                    
+                    rots = rotation_align_axis(**align_axis_config, vec=vec_array)
+                    rotation_traj = RotationTrajectory(rots,dur=translation_traj.dur)
+                if 'constant' in cr.keys():
+                    raise NotImplementedError
 
-        if rotation['type'] == 'align_axis':
-            params = rotation['align_axis']
-            flip = params['flip']
-            axis = params['axis']
-            grounded_axis = params['grounded_axis']
-            _with = {'pos': translation_traj.pos.values, 'vel':translation_traj.vel.values, 'acc': translation_traj.acc}[params['with']]
-            rots = rotation_align_axis(axis,_with,grounded_axis,flip)
-            rotation_traj = RotationTrajectory(rots,dur=translation_traj.dur)
+        elif config_mode=={'file'}:
+            cf = config['file']
+            path, fmt, time_unit, jpl = cf['path'], cf['format'], cf['time_unit'], cf['jpl']
+            return cls.from_file(path, fmt, time_unit, jpl, _id)
+        
+        elif config_mode=={'subsample_interpolate'}:
+                config_mode, options, config = check_keys('subsample_interpolate',config.keys())
+                #depends on another existing trajectory: construct empty trajectory with super_id
+                return config
+        
+        if 'modify' in config.keys():
+            raise NotImplementedError
+        
 
         return cls(translation_traj,rotation_traj,_id)
     
-class TrajectoryGroup():
-    """
-    group of related Trajectory objects - e.g. the ground truth and the estimate
-    """
-    def __init__(self, trajectories, reference):
-        
-        self.reference = reference
-        self.trajectories = trajectories
-        self.n = len(trajectories)
-        self.get_error()
     
-    def get_error(self):
+    def subsample_interpolate(self, order=3, control_point_rate=10, control_point_num=None, super_id=None):
         """
-        get error between reference and target trajectories
-        """
-        error = {}
-        trajectories = self.trajectories
-        ref = self.reference
-        for k,v in trajectories.items():
-            if k != ref:
-                # print(v.n)
-                error = TrajectoryError(v,trajectories[ref])
-                v.eval.add_sequence('error_pos',error.pos)
-                v.eval.add_sequence('error_angle',error.angle)
-                v.eval.rmse_pos = error.rmse_pos
-                v.eval.rmse_angle = error.rmse_angle
-        # return error
+        fit a bspline to the current trajectory, return a new trajectory
 
-    @classmethod
-    def config(cls, config):
-        reference = config['reference']
-        ct = config['trajectories']
-        trajectories = {}
-        for i in ct:
-            t = Trajectory.config(i)
-            trajectories[t.id] = t
-        return cls(trajectories,reference)
+        subsample the trajectory at any rate or number of points:
+        (enforce both end points)
+
+        determine the span time: amount of time b/w (order+1) control points
+
+        determine res (at least the number of points in the original trajectory)
+        
+        pin endpoints by duplicating
+        """
+
+        sub_traj = self.subsample(control_point_rate, interpolate=False)
+        control_points = sub_traj.translation.pos.values
+        span_time = sub_traj.dt
+        l = len(control_points)
+        _res = int((self.n/(l-order))) #approximate number of points per span to match original trajectory
+        # res = _res*4 #compute at higher resolution, then subsample
+        res = _res #compute at higher resolution, then subsample
+        translation = BSpline(res=res, order=order, span_time=span_time, control_points=control_points)  
+        n,t = translation.n, translation.t
+        
+        rotation = RotationTrajectory(np.zeros((n,3)),t=t)
+        # new_traj = Trajectory(translation,rotation,_id=self.id+'_bspline').subsample(self.rate)
+        new_traj = Trajectory(translation,rotation,_id=self.id+'_bspline')
+        
+        
+        return new_traj
+    

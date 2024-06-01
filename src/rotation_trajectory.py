@@ -5,6 +5,7 @@ from scipy.spatial.transform import Rotation
 from motion_utils import init_trajectory_timestamps, angvel_from_rotations, time_derivative
 from geometry_utils import as_scipy_rotation
 from row_vector_array import RowVectorArray
+from config_utils import check_keys, ConfigurationError
 
 class RotationTrajectory():
     """"
@@ -48,3 +49,15 @@ class RotationTrajectory():
         Rb = R[b]
         return as_scipy_rotation(Ra.T@Rb)
     
+    @classmethod
+    def config(cls,config):
+        config_mode, config = check_keys('rotation',config)
+        if config_mode == 'bspline_so3':
+            raise NotImplementedError
+        elif config_mode == {'align_axis'}:
+            return config
+        elif config_mode == 'constant':
+            return config
+
+
+       

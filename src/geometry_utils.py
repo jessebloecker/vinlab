@@ -151,11 +151,12 @@ def as_scipy_rotation(rot):
 
 
 
-def random_point_set(n, radius, center):
+def random_point_set(center, radius, num):
     """
     generate 'n' random points uniformly distributed within a sphere with 'radius' and 'center'
     """
     c = center
+    n = num
     r_max = radius
 
     v = np.random.uniform(-1,1,(n,3))
@@ -165,8 +166,9 @@ def random_point_set(n, radius, center):
     return points
 
 
-def planar_point_set(radius, center, normal, n=None, grid_spacing=None):
+def planar_point_set(center, normal, radius, num=None, grid_spacing=None):
     c = center
+    n = num
     r_max = radius
     if grid_spacing is not None:
         _min = -r_max/2
@@ -181,7 +183,7 @@ def planar_point_set(radius, center, normal, n=None, grid_spacing=None):
         r = np.sqrt(np.random.uniform(0,r_max**2,n)) #random scales, prevent clustering at center
         points_xy = np.multiply(u,r).T.astype(np.float32)
     else:
-        raise ValueError('provide either number of points or grid_spacing')
+        raise ValueError('planar_point_set: provide either number of points or grid_spacing')
     # print('center: {}\nradius: {}\nnormal: {}\npoints_xy: {}'.format(center.shape,radius.shape,normal.shape,points_xy.shape))
     R = rotation_align_axis(axis='z', vec=normal, grounded_axis='x')
     #print the shape of all of these variables:
@@ -202,5 +204,4 @@ def linear_interp_so3(a,b,n):
     compute linear interpolation with 'n' steps from rotation matrix 'a' to rotation matrix 'b', including 'a' and 'b'
     returns: array of shape (n,3,3)
     """
-    R = Rotation.from_matrix([a,b])
-    return R.as_matrix()
+    pass

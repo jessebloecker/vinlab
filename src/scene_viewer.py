@@ -34,17 +34,17 @@ class SceneViewer(Node):
             self.get_logger().error('no scene configuration set - provide path to yaml file. \n   usage: \n   '
                                     'ros2 run motion_tools scene_viewer.py --ros-args --params-file path/to/scene_viewer.yaml')
             sys.exit()
+        else:
+            self.get_logger().info('loading scene configuration: {}'.format(scene_config))
         self.scene = Scene.config(scene_config)
         self.scene.print_scene_info()
 
         tg = self.scene.trajectory_group
-        self.traj_ref = tg.trajectories[tg.reference]
-        if tg.n > 1:
-            self.traj_est = tg.trajectories[list(tg.trajectories.keys()).remove(tg.reference)[0]] #default to the first trajectory in the group, other than the reference
-            self.get_logger().info(': reference trajectory: \'{}\', estimated trajectory: {}'.format(self.traj_ref.id, self.traj_est.id))
-        else:
-            self.get_logger().info(': reference trajectory: \'{}\', estimated trajectory: None'.format(self.traj_ref.id))
-            self.traj_est = self.traj_ref
+        ref = tg.reference
+        main = tg.main
+        self.traj_ref = tg.trajectories[ref]
+        self.traj_main = tg.trajectories[main]
+        self.get_logger().info(': reference trajectory: \'{}\', main trajectory: \'{}\''.format(self.traj_ref.id, self.traj_main.id))
 
 
         p,s = self.init_pub_sub()
@@ -68,17 +68,20 @@ class SceneViewer(Node):
         self.declare_parameter('loop',False)
         self.declare_parameter('slow_rate',1.0)
         self.declare_parameter('fast_rate',30.0)
-        self.declare_parameter('colors.trajectory.res',100)
-        self.declare_parameter('colors.trajectory.wrt','vel')
-        self.declare_parameter('colors.trajectory.color_min','green')
-        self.declare_parameter('colors.trajectory.color_max','red')
-        self.declare_parameter('colors.features','rainbow')
+        self.declare_parameter('line_width',0.01)
+        self.declare_parameter('control_point_size',0.03)
+        self.declare_parameter('main_trajectory.id','estimate')
+        self.declare_parameter('main_trajectory.colors.res',100)
+        self.declare_parameter('main_trajectory.colors.wrt','vel')
+        self.declare_parameter('main_trajectory.colors.color_min','green')
+        self.declare_parameter('main_trajectory.colors.color_max','red')
+        # self.declare_parameter('colors.features','rainbow')
     
     def init_pub_sub(self):
         """
         initialize publishers and subscribers
         """
-        traj = self.traj_ref
+        traj_main = self.traj_main
         now = self.get_clock().now().nanoseconds
         
         sub_slider = self.create_subscription(Float32,'/slider/value',self.slider_cb,10)
@@ -87,16 +90,17 @@ class SceneViewer(Node):
         publishers['index_markers'] = self.create_publisher(MarkerArray,'~/index_markers', 10)
         publishers['transforms'] = tf2_ros.TransformBroadcaster(self)
         publishers['static_transforms'] = tf2_ros.StaticTransformBroadcaster(self)
-        publishers['paths'] = {'pos': self.create_publisher(Marker,'~/'+traj.id+'/pos',10)}
         publishers['features'] = self.create_publisher(MarkerArray,'~/features',10)
         publishers['feature_measurements'] = self.create_publisher(Int16MultiArray,'~/feature_measurements',10)
         publishers['feature_colors'] = self.create_publisher(Int16MultiArray,'~/feature_colors',10)
         publishers['camera_infos'] = self.create_publisher(CameraInfo,'~/camera_info',10)
         publishers['mark'] = self.create_publisher(Float32,'~/mark',10)
         publishers['index'] = self.create_publisher(Int16,'~/index',10)
-       
-        for i in ('vel','acc', 'angvel', 'angacc'):
-            publishers['paths'][i] = self.create_publisher(Path,'~/'+traj.id+'/'+i,10)
+        publishers['control_points']= {'ref':  self.create_publisher(Marker,'~/ref/control_points',10),
+                                       'main': self.create_publisher(Marker,'~/main/control_points',10)}
+        publishers['paths'] = {'pos_main': self.create_publisher(Marker,'~/main/pos',10)}
+        for i in ('pos','vel','acc', 'angvel', 'angacc'):
+            publishers['paths'][i+'_ref'] = self.create_publisher(Path,'~/ref/'+i,10)
         return publishers, subscribers
     
     def slider_cb(self,msg):
@@ -109,29 +113,32 @@ class SceneViewer(Node):
         Convert trajectory to Path messages, list of transforms, and list of marker arrays
         corresponding to each time step in the trajectory
         """
-        traj = self.traj_ref
-        traj_est = self.traj_est
+        traj_ref = self.traj_ref
+        traj_main = self.traj_main
+
+        global_frame = traj_ref.global_frame
+        moving_frame = traj_ref.moving_frame
 
         features = self.scene.features
         meas = self.scene.measurements['cam0']
         sensors = self.scene.platform.sensors
-        # num_frames = self.scene.platform.num_frames
-        
-        # feature_measurements= meas.swapaxes(1,2).reshape(2*meas.shape[0],meas.shape[1]).astype(np.int16)
-        moving_frame = traj.moving_frame
 
-        messages = {'paths':{'pos': rmh.as_marker_msg(frame_id=traj.global_frame, scale=[0.05]*3, marker_type=4),
-                             'vel': rmh.as_path_msg(frame_id=traj.global_frame), 
-                             'acc': rmh.as_path_msg(frame_id=traj.global_frame),
-                             'angvel': rmh.as_path_msg(frame_id=traj.global_frame),
-                             'angacc': rmh.as_path_msg(frame_id=traj.global_frame)},
-                    # 'index_markers':rmh.as_marker_msg(frame_id=traj.global_frame, scale=rmh.as_vector3_msg([0.25]*3), marker_type=7),
+        line_width = self.get_parameter('line_width').get_parameter_value().double_value
+        control_point_size = self.get_parameter('control_point_size').get_parameter_value().double_value
+        messages = {'paths':{'pos_main': rmh.as_marker_msg(frame_id=global_frame, scale=[line_width]*3, marker_type=4),
+                             'pos_ref': rmh.as_path_msg(frame_id=global_frame),
+                             'vel_ref': rmh.as_path_msg(frame_id=global_frame), 
+                             'acc_ref': rmh.as_path_msg(frame_id=global_frame),
+                             'angvel_ref': rmh.as_path_msg(frame_id=global_frame),
+                             'angacc_ref': rmh.as_path_msg(frame_id=global_frame)},
+                    'control_points': {'ref': rmh.as_marker_msg(frame_id=global_frame, scale=[control_point_size]*3, marker_type=7),
+                                       'main': rmh.as_marker_msg(frame_id=global_frame, scale=[control_point_size]*3, marker_type=7)},
                     'index_markers': [],
                     'transforms':[],
                     'static_transforms':[],
                     'mark': Float32(),
                     'index': Int16(),
-                    'features':rmh.as_markerarray_msg(frame_id=traj.global_frame,n=len(features),marker_type=7, scale=[0.05]*3),
+                    'features':rmh.as_markerarray_msg(frame_id=global_frame,n=len(features),marker_type=7, scale=[0.05]*3),
                     'camera_infos': [] }
                     # 'feature_measurements':rmh.as_int16multiarray_msg(feature_measurements)}
         
@@ -162,8 +169,8 @@ class SceneViewer(Node):
         messages['feature_colors'] = feature_colors_msg
 
         for k,v in sensors.items():
-            if not k==traj.moving_frame:
-                static_tf_msg = rmh.as_transformstamped_msg(0, traj.moving_frame, k, v.pos, v.rot.as_quat())
+            if not k==traj_main.moving_frame:
+                static_tf_msg = rmh.as_transformstamped_msg(0, traj_main.moving_frame, k, v.pos, v.rot.as_quat())
                 messages['static_transforms'].append(static_tf_msg)
 
         for k,v in sensors.items():
@@ -178,36 +185,51 @@ class SceneViewer(Node):
                 messages['camera_infos'].append(camera_info_msg)
 
         ch = ColorHelper('rgba',scale=1)
-        color_res = self.get_parameter('colors.trajectory.res').get_parameter_value().integer_value
-        color_min = ch.__dict__[(self.get_parameter('colors.trajectory.color_min').get_parameter_value().string_value).upper()]
-        color_max = ch.__dict__[(self.get_parameter('colors.trajectory.color_max').get_parameter_value().string_value).upper()]
+        color_res = self.get_parameter('main_trajectory.colors.res').get_parameter_value().integer_value
+        color_min = ch.__dict__[(self.get_parameter('main_trajectory.colors.color_min').get_parameter_value().string_value).upper()]
+        # color_avg = ch.__dict__[(self.get_parameter('main_trajectory.colors.color_avg').get_parameter_value().string_value).upper()]
+        color_max = ch.__dict__[(self.get_parameter('main_trajectory.colors.color_max').get_parameter_value().string_value).upper()]
         colors = linear_interp(color_min, color_max, color_res)
         
-        color_map_wrt = self.get_parameter('colors.trajectory.wrt').get_parameter_value().string_value
+        color_map_wrt = self.get_parameter('main_trajectory.colors.wrt').get_parameter_value().string_value
         if color_map_wrt in ['pos', 'vel', 'acc']:
-            magnitudes = traj_est.translation.__dict__[color_map_wrt].normalized_norms
+            magnitudes = traj_main.translation.__dict__[color_map_wrt].normalized_norms
         else:
             self.get_logger().warn('trajectory color with respect to unknown quantity: \'{}\', ignoring...'.format(color_map_wrt))
-            magnitudes = np.zeros(traj.n)
+            magnitudes = np.zeros(traj_main.n)
      
-        q_all = traj.rotation.rot.as_quat() #hamiltonian quaternions
-        for i in range(traj.n):
-            t = traj.t[i]
-            p = traj.translation.pos.values[i]
-            v = traj.translation.vel.values[i]
-            a = traj.translation.acc.values[i]
-            w = traj.rotation.angvel.values[i]
-            aa = traj.rotation.angacc.values[i]
+        q_all = traj_ref.rotation.rot.as_quat() #hamiltonian quaternions
+        for i in range(traj_ref.n): #fill messages corresponding to the reference trajectory
+            t = traj_ref.t[i]
+            p = traj_ref.translation.pos.values[i]
+            v = traj_ref.translation.vel.values[i]
+            a = traj_ref.translation.acc.values[i]
+            w = traj_ref.rotation.angvel.values[i]
+            aa = traj_ref.rotation.angacc.values[i]
             q = q_all[i]
+            messages['index_markers'].append(rmh.as_markerarray_msg(frame_id=global_frame,pos=(p,v,a,w,aa)))
+            messages['paths']['pos_ref'].poses.append(rmh.as_posestamped_msg(t, global_frame, p))
+            messages['paths']['vel_ref'].poses.append(rmh.as_posestamped_msg(t, global_frame, v))
+            messages['paths']['acc_ref'].poses.append(rmh.as_posestamped_msg(t, global_frame, a))
+            messages['paths']['angvel_ref'].poses.append(rmh.as_posestamped_msg(t, global_frame, w))
+            messages['paths']['angvel_ref'].poses.append(rmh.as_posestamped_msg(t, global_frame, aa))
+            messages['transforms'].append(rmh.as_transformstamped_msg(t, global_frame, moving_frame, p, q))
+        if traj_ref.translation.type=='bspline':
+            pts = traj_ref.translation.control_points
+            for i in range(len(pts)):
+                messages['control_points']['ref'].points.append(rmh.as_point_msg(pts[i]))
+                messages['control_points']['ref'].colors.append(rmh.as_color_msg(ch.WHITE))
+
     
-            messages['paths']['pos'].points.append(rmh.as_point_msg(p))
-            messages['paths']['pos'].colors.append(rmh.as_color_msg(colors[int((color_res-1)*magnitudes[i])]))
-            messages['index_markers'].append(rmh.as_markerarray_msg(frame_id=traj.id,pos=(p,v,a,w,aa)))
-            messages['paths']['vel'].poses.append(rmh.as_posestamped_msg(t, traj.global_frame, v))
-            messages['paths']['acc'].poses.append(rmh.as_posestamped_msg(t, traj.global_frame, a))
-            messages['paths']['angvel'].poses.append(rmh.as_posestamped_msg(t, traj.global_frame, w))
-            messages['paths']['angvel'].poses.append(rmh.as_posestamped_msg(t, traj.global_frame, aa))
-            messages['transforms'].append(rmh.as_transformstamped_msg(t, traj.global_frame, moving_frame, p, q))
+        for i in range(traj_main.n): # fill messages corresponding to the main trajectory
+            p_main = traj_main.translation.pos.values[i]
+            messages['paths']['pos_main'].points.append(rmh.as_point_msg(p_main))
+            messages['paths']['pos_main'].colors.append(rmh.as_color_msg(colors[int((color_res-1)*magnitudes[i])]))
+        # if traj_main.translation.type=='bspline':
+        #     print(traj_main.translation.control_points[i])
+        #     messages['control_points']['main'].points.append(rmh.as_point_msg(traj_main.translation.control_points[i]))
+        #     messages['control_points']['main'].colors.append(rmh.as_color_msg(ch.GREEN))
+       
 
         i = 0
         for k,v in features.items():
@@ -226,6 +248,7 @@ class SceneViewer(Node):
         fast_group = MutuallyExclusiveCallbackGroup()
         slow_group = MutuallyExclusiveCallbackGroup()
         self.create_timer(1.0/slow_rate, self.publish_paths, callback_group=slow_group)
+        self.create_timer(1.0/slow_rate, self.publish_control_points, callback_group=slow_group)
         self.create_timer(1.0/slow_rate, self.publish_features, callback_group=slow_group)
         self.create_timer(1.0/slow_rate, self.publish_feature_measurements, callback_group=slow_group)
         self.create_timer(1.0/slow_rate, self.publish_camera_infos, callback_group=slow_group)
@@ -243,8 +266,8 @@ class SceneViewer(Node):
         or based on slider position in gui (not implemented yet)
         """
         if self.playing:
-            traj = self.traj_ref
-            T = traj.dur*1e9 #duration in nanoseconds
+            traj_ref = self.traj_ref
+            T = traj_ref.dur*1e9 #duration in nanoseconds
             t0 = self.t0 
 
             t = self.get_clock().now().nanoseconds-t0
@@ -253,7 +276,7 @@ class SceneViewer(Node):
                 t = 0
                 self.get_logger().info('end of trajectory, looping again...')
 
-            n = traj.n
+            n = traj_ref.n
             i = int((t/T)*n) #index in trajectory
             self.i = i
 
@@ -261,11 +284,18 @@ class SceneViewer(Node):
         pub = self.pub['paths']
         msgs = self.messages['paths']
    
-        pub['pos'].publish(msgs['pos'])
-        pub['vel'].publish(msgs['vel'])
-        pub['acc'].publish(msgs['acc'])
-        pub['angvel'].publish(msgs['angvel'])
-        pub['angacc'].publish(msgs['angacc'])
+        pub['pos_main'].publish(msgs['pos_main'])
+        pub['pos_ref'].publish(msgs['pos_ref'])
+        pub['vel_ref'].publish(msgs['vel_ref'])
+        pub['acc_ref'].publish(msgs['acc_ref'])
+        pub['angvel_ref'].publish(msgs['angvel_ref'])
+        pub['angacc_ref'].publish(msgs['angacc_ref'])
+
+    def publish_control_points(self):
+        pub = self.pub['control_points']
+        msgs = self.messages['control_points']
+        pub['ref'].publish(msgs['ref'])
+        pub['main'].publish(msgs['main'])
 
     def publish_index_markers(self):
         i = self.i
@@ -334,8 +364,4 @@ if __name__ == '__main__':
     executor = MultiThreadedExecutor()
     executor.add_node(s)
     executor.spin()
-
-
-
-   
 

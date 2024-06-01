@@ -1,0 +1,159 @@
+
+#This file controls which sub-keys are valid for each key in the config files, names listed alphabetically
+#         required:            all of these keys must be included
+#         required_exclusive:  exactly one of these keys must be included (unless it contains any groups of codependent keys)
+#         optional:            any of these keys may optionally be included
+#         codependent:         if any of these keys are included, all of them must be included
+
+- name: align_axis
+  required: [axis, vec, grounded_axis, flip]
+  required_exclusive: []
+  optional: [flip]
+  codependent: []
+
+- name: body_frame
+  required: [id, transform]
+  required_exclusive: []
+  optional: []
+  codependent: []
+
+- name: bspline
+  required: [res, degree, span_time, control_points]
+  required_exclusive: []
+  optional: []
+  codependent: []
+
+- name: subsample_interpolate
+  required: [super_id, control_point_rate, degree]
+  required_exclusive: []
+  optional: [translation_only, rotation_only]
+  codependent: []
+
+- name: camera
+  required: [height, width, intrinsics]
+  required_exclusive: []
+  optional: [distortion, transform]
+  codependent: []
+
+- name: control_points
+  required: []
+  required_exclusive: [points, file]
+  optional: []
+  codependent: []
+
+- name: feature
+  required: [id]
+  required_exclusive: [points, random_points, planar_points]
+  optional: [color]
+  codependent: []
+
+- name: file
+  control_points:
+    required: [path, format]
+    required_exclusive: []
+    optional: [time_unit, jpl] #require these only if time or quaternion data is in the format string
+    codependent: []
+
+- name: imu
+  required: [gyro_noise, gyro_bias, accel_noise, accel_bias]
+  required_exclusive: []
+  optional: []
+  codependent: []
+
+# - name: modify
+#   required: []
+#   required_exclusive: []
+#   optional: [scale, shift, rotate_about_point]
+#   codependent: []
+
+- name: planar_points
+  required: [center, normal, radius]
+  required_exclusive: [grid_spacing, num]
+  optional: [frame_id]
+  codependent: []
+
+- name: platform
+  required: [id, base_frame]
+  required_exclusive: []
+  optional: [sensors, body_frames]
+  codependent: []
+
+- name: points
+  required: []
+  required_exclusive: []
+  optional: []
+  codependent: []
+
+- name: random_points
+  required: [center, radius, num]
+  required_exclusive: []
+  optional: []
+  codependent: []
+
+- name: rotate_about_point
+  required: [rotation]
+  required_exclusive: []
+  optional: [jpl, radians]
+  codependent: []
+
+- name: rotation
+  required: []
+  required_exclusive: [align_axis, constant, bspline_so3]
+  optional: []
+  codependent: []
+
+- name: scene
+  required: [trajectory_group, platform]
+  required_exclusive: []
+  optional: [features]
+  codependent: []
+  codependent: []
+
+- name: sensor
+  required: [id, enable_measurements, rate]
+  required_exclusive: [imu, camera]
+  optional: [transform, time_offset]
+  codependent: []
+
+- name: trajectory
+  required: [id]
+  required_exclusive: [file, translation, rotation, subsample_interpolate, copy]
+  optional: []
+  optional: []
+  codependent:
+    - [translation, rotation]
+
+- name: trajectory_group
+  required: [reference, trajectories]
+  required_exclusive: []
+  optional: [main]
+  codependent: []
+
+- name: transform
+  required: [translation, rotation]
+  required_exclusive: []
+  optional: [from, jpl]
+  codependent: []
+    
+- name: translation
+  required: []
+  required_exclusive: [bspline, file, constant]
+  optional: []
+  codependent: []
+
+- name: vec
+  required: []
+  required_exclusive: [point, current_trajectory]
+  optional: [negate]
+  codependent: []
+    
+#TODO: maybe a better format to include context and allow repeated keys and type enforcement
+#example:
+# - name: vec
+#     - context: rotation
+#       subkeys:
+#         required: []
+#         required_exclusive: [point, current_trajectory]
+#         optional: [negate]
+#         codependent: []
+#       type: list
