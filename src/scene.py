@@ -56,7 +56,7 @@ class Scene():
         """
         Initialize a Scene instance from a config file
         """
-        config = check_keys('scene',yaml.load(open(config_file),Loader=yaml.FullLoader))[1]
+        config = check_keys(yaml.load(open(config_file),Loader=yaml.FullLoader),'scene', context=None)[0]
         trajectory_group = TrajectoryGroup.config(config['trajectory_group'])
         platform = SensorPlatform.config(config['platform'])
 
@@ -145,16 +145,12 @@ class Scene():
         z_all = cPcf_stack[:,2].reshape(n*m,1) # n*m x 1
         xy1 = np.nan_to_num(np.divide(cPcf_stack,z_all)) # n*m x 3 (all points in camera frame at all times, divided by their z values)
         xy = xy1[:,0:2] # n*m x 2
-        # assert(np.allclose(xy1[:,2],np.ones(n*m)))
 
-        #get vector of radii for each point
-        r = np.linalg.norm(xy,axis=1)
-        k1, k2, p1, p2 = platform.sensors[frame_id].distortion
-        f = 1 + k1*r**2 + k2*r**4 #distortion factor
-        xy1 = (f*xy1.T).T
-        # print('\n\n xy1: {} \n\n\n'.format(xy1))
-        # assert(np.allclose(xy1[:,2],r))
-
+        #apply distortion if distortion coefficients were provided
+        if platform.sensors[frame_id].distortion is None: # using 'is not None' instead of '!= None' doesn't work here for some reason
+            coefficients = platform.sensors[frame_id].distortion
+            xy = self.radtan_distort(xy,coefficients)
+        xy1[:,0:2] = xy
         proj = (K@xy1.T).T.astype(np.int32)
         assert proj.shape == (n*m,3)
 
@@ -177,8 +173,18 @@ class Scene():
 
         return out
     
-    def radial_distortion(self, r, k1,k2):
-        return (1 + k1*r**2 + k2*r**4)
+    def radtan_distort(self, points, coefficients):
+        """
+        apply radial and tangential distortion to a set of points
+        
+        params:
+            points: n x 2 array of uv points
+            coefficients: 4 element array of distortion coefficients
+        returns: n x 2 array of distorted points
+        """
+        k1,k2,p1,p2 = coefficients
+        #TODO apply the distortion
+        return points
     
     def get_imu_measurements(self, frame_id):
         """

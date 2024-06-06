@@ -18,7 +18,7 @@ class TrajectoryGroup():
 
     @classmethod
     def config(cls, config):
-        config = check_keys('trajectory_group',config)[1]
+        config = check_keys(config, 'trajectory_group', context='scene')[0]
         reference = config['reference']
         trajectories = {}
         ct = config['trajectories']

@@ -72,8 +72,7 @@ class Trajectory():
         dt_sub = 1./rate
 
         if interpolate:
-            #TODO
-            pass
+            raise NotImplementedError
         else:
             if rate > traj_rate:
                 print(self.__class__.__name__+': subsample rate {:.1f} exceeds or matches trajectory rate {:.1f}, using trajectory rate'.format(rate,traj_rate))
@@ -163,7 +162,6 @@ class Trajectory():
         if time_unit not in time_units.keys():
             raise ValueError('invalid time unit - must be s, ms, us, or ns')
 
-        
         data = np.loadtxt(path, delimiter=',',skiprows=0)
         initial_time = data[0,0]
         t = (data[:,f.index('t')] - initial_time)*time_units[time_unit]
@@ -194,7 +192,7 @@ class Trajectory():
     
     @classmethod
     def config(cls, config):
-        config_mode, config = check_keys('trajectory',config)
+        config, config_mode = check_keys(config, 'trajectory', context='trajectory_group')
         _id = config['id']
         if config_mode=={'translation','rotation'}:
          
@@ -214,9 +212,8 @@ class Trajectory():
             
             if dependent_rotation:
                 if 'align_axis' in cr.keys():
-                    align_axis = cr['align_axis']
-                    align_axis_config  = check_keys('align_axis',cr['align_axis'])[1]
-                    vec_config = check_keys('vec', align_axis_config.pop('vec'))[1]
+                    align_axis_config  = check_keys(cr.pop('align_axis'), 'align_axis', context='rotation')[0]
+                    vec_config = check_keys(align_axis_config.pop('vec'), 'vec', context='align_axis')[0]
                     if 'current_trajectory' in vec_config:
                         name = vec_config['current_trajectory']
                         vec_array = {
@@ -227,7 +224,7 @@ class Trajectory():
                     elif 'point' in vec_config:
                         vec_array = np.array(vec_config['point']) - translation_traj.pos.values
                     if 'negate' in vec_config:
-                        vec_array = -vec_array
+                        vec_array = -vec_array if vec_config['negate'] else vec_array
                     
                     rots = rotation_align_axis(**align_axis_config, vec=vec_array)
                     rotation_traj = RotationTrajectory(rots,dur=translation_traj.dur)

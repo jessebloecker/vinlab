@@ -34,7 +34,7 @@ class TranslationTrajectory():
 
     @classmethod
     def config(cls,config):
-        config_mode, config = check_keys('translation',config)
+        config, config_mode  = check_keys(config, 'translation', context='trajectory')
         
         if config_mode == {'bspline'}:
             return BSpline.config(config['bspline'])
@@ -56,9 +56,9 @@ class TranslationTrajectory():
         n = self.n
         if target.shape==(3,) or target.shape==(n,3):
             bearing_vectors = target - self.pos.values
+            return bearing_vectors
         else:
             raise ValueError('bearing vector target must have shape (3,) or ({},3), got shape {}'.format(n,target.shape))
-            return bearing_vectors
 
        
     
@@ -138,11 +138,11 @@ class BSpline(TranslationTrajectory):
     
     @classmethod
     def config(cls,config):
-        config_mode, config = check_keys('bspline',config)
-        control_point_config_mode, control_point_config = check_keys('control_points',config.pop('control_points'))
-        if control_point_config_mode == {'points'}:
-            control_points = np.array(control_point_config['points']).astype(np.float64)
-        elif control_point_config_mode == {'file'}:
+        config = check_keys(config, 'bspline', context='translation')[0]
+        ctrl_pt_config, ctrl_pt_config_mode = check_keys(config.pop('control_points'), 'control_points', context='bspline')
+        if ctrl_pt_config_mode == {'points'}:
+            points = np.array(ctrl_pt_config['points']).astype(np.float64)
+        elif ctrl_pt_config_mode == {'file'}:
             raise NotImplementedError
-        
-        return cls(**config,control_points=control_points)
+    
+        return cls(**config,control_points=points)

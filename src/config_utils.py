@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import numpy as np
-import array_utils
 from geometry_utils import as_scipy_rotation
 import yaml
 
@@ -9,13 +8,13 @@ class ConfigurationError(Exception):
     pass
 
 
-# def check_keys(name,keys):
-def check_keys(name,config):
+def check_keys(config, name, context):
     """
     Check if the keys/sub-keys provided in the yaml file are valid in their context.
 
     params:
         name: string, the name of the class or object that the keys are associated with
+        context: string, the context in which the keys are being used
         config: dictionary whose keys (the sub-keys) will be checked according the entry in 'valid_keys.yaml' corresponding to 'name'.
     
     The following sets of keys are defined in 'valid_keys.yaml' for each name (class):
@@ -27,16 +26,27 @@ def check_keys(name,config):
 
     If the provided keys are valid, return the provided keys as a set, otherwise raise a ConfigurationError.
     """
-
     keys = set(config.keys())
-    _list = yaml.load(open('/home/jesse/ros2_ws/src/vinlab/config/valid_keys.yaml'),Loader=yaml.FullLoader) #list of dictionaries
-    valid = next(i for i in _list if i['name'] == name) #the the relevant dictionary corresponding to 'name'
-    req = set(valid['required'])
-    req_excl = set(valid['required_exclusive'])
-    options = set(valid['optional'])
-    codeps = [set(i) for i in valid['codependent']]
+    all_specs = yaml.load(open('/home/jesse/ros2_ws/src/vinlab/config/valid_keys.yaml'),Loader=yaml.FullLoader) #list of lists of dictionaries
+    try:
+        spec = all_specs[name]
+        valid = next(i for i in spec if i['context'] == context) 
+    except (KeyError, StopIteration):
+        raise ConfigurationError('\'{}\', \'{}\' do not form a valid name and context'.format(name,context))
+    
+    subkeys = valid['subkeys']
+    req = set(subkeys['required'])
+    req_excl = set(subkeys['required_exclusive'])
+    options = set(subkeys['optional'])
+    codeps = [set(i) for i in subkeys['codependent']]
     allowed = req | req_excl | options
 
+    
+    # print('check keys called with name {} and context {}'.format(name,context))
+    # print('keys provided: {}'.format(keys))
+    # print('specs: {}'.format(all_specs))
+    # print('valid keys: {}'.format(valid))
+    # print('subkeys: {}'.format(subkeys))    
     codeps_req = [] #handle situation when codependent keys are in 'required_exclusive', meaning they are required as a group, if any are included 
     for codep in codeps:
         if len(codep&keys) > 0 and not codep <= keys: #then you provided some but not all of the codependent keys
@@ -59,7 +69,7 @@ def check_keys(name,config):
                                      .format(', '.join("'{0}'".format(i) for i in list(keys&req_excl)),name))
         
     config_mode = keys&req_excl
-    return config_mode, config
+    return config, config_mode
 
 
 def config_transform(config):

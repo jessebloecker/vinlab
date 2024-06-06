@@ -16,7 +16,7 @@ class Feature():
 
     @classmethod
     def config(cls, config):
-        config_mode, config = check_keys('feature',config)
+        config, config_mode = check_keys(config, 'feature', context='features')
         config['feature_id'] = config.pop('id')
         
         if config_mode == {'points'}:
@@ -70,7 +70,7 @@ class PlanarPointSet(PointSet):
 
     @classmethod
     def config(cls, config):
-        config_mode, config_planar = check_keys('planar_points',config.pop('planar_points'))
+        config_planar, config_mode = check_keys(config.pop('planar_points'), 'planar_points', context='feature')
         center = np.array(config_planar['center']).astype(np.float32)
         radius = float(config_planar['radius'])
         normal = np.array(config_planar['normal']).astype(np.float32)
@@ -88,7 +88,7 @@ class RandomPointSet(PointSet):
     
     @classmethod
     def config(cls, config):
-        config_random = check_keys('random_points',config.pop('random_points'))[1]
+        config_random = check_keys(config.pop('random_points'), 'random_points', context='feature')[0]
         center = np.array(config_random['center']).astype(np.float32)
         radius = float(config_random['radius'])
         num = int(config_random['num'])

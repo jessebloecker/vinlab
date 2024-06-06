@@ -51,7 +51,7 @@ class RotationTrajectory():
     
     @classmethod
     def config(cls,config):
-        config_mode, config = check_keys('rotation',config)
+        config, config_mode  = check_keys(config, 'rotation', context='trajectory')
         if config_mode == 'bspline_so3':
             raise NotImplementedError
         elif config_mode == {'align_axis'}:

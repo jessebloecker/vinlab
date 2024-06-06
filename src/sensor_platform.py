@@ -2,7 +2,6 @@
 
 import numpy as np
 from scipy.spatial.transform import Rotation
-import motion_utils as utils
 from geometry_utils import as_scipy_rotation
 from config_utils import check_keys, config_transform, ConfigurationError
 
@@ -24,9 +23,8 @@ class SensorPlatform():
         """
         # print('finding frame_id: {}'.format(frame_id))
         for s in [self.sensors, self.body_frames]:
-            print(s)
             for k,v in s.items():
-                print('k: {} v.id: {} '.format(k,v.id))
+                # print('k: {} v.id: {} '.format(k,v.id))
                 if v.id == frame_id:
                     return v
         raise ConfigurationError(self.__class__.__name__+': frame_id: \'{}\' not found on platform \'{}\''.format(frame_id,self.id))
@@ -62,13 +60,13 @@ class SensorPlatform():
                     _0P01 = parent_frame.pos
                     _1R2 = child_frame.rot.as_matrix()
                     _1P12 = child_frame.pos
-                    rot  = utils.as_scipy_rotation(_0R1@_1R2)
+                    rot  = as_scipy_rotation(_0R1@_1R2)
                     pos = _0P01 + _0R1 @ _1P12
                     v.rot, v.pos  = rot,pos
 
     @classmethod
     def config(cls, config):
-        config_mode, config = check_keys('platform',config)
+        config = check_keys(config, 'platform', context='scene')[0]
         platform_id = config['id']
         base_frame = config['base_frame']
 
@@ -101,7 +99,7 @@ class Sensor():
 
     @classmethod
     def config(cls,config):
-        config_mode, config = check_keys('sensor',config)
+        config, config_mode = check_keys(config, 'sensor', context='sensors')
         config['sensor_id'] = config.pop('id')
 
         if 'transform' in config.keys():
@@ -127,11 +125,11 @@ class Camera(Sensor):
         self.height = int(height)
         fx,fy,cx,cy = np.array(intrinsics).astype(np.float32)
         self.K = np.array([[fx,0,cx],[0,fy,cy],[0,0,1]])
-        self.distortion = np.array(distortion)
+        self.distortion = np.array(distortion) if distortion is not None else None
 
     @classmethod
     def config(cls, config):
-        cc = check_keys('camera',config.pop('camera'))[1]
+        cc = check_keys(config.pop('camera'), 'camera', context='sensor')[0]
         if 'distortion' in cc.keys():
             distortion = np.array(cc['distortion']).astype(np.float32) 
             cc['distortion'] = distortion
@@ -165,7 +163,7 @@ class Imu(Sensor):
 
     @classmethod
     def config(cls, config):
-        ci = check_keys('imu',config.pop('imu'))[1]
+        ci = check_keys(config.pop('imu'), 'imu', context='sensor')[0]
         return cls(**config,**ci)
     
 
@@ -180,7 +178,7 @@ class BodyFrame():
         self.resolve_transform_from = resolve_transform_from
     @classmethod
     def config(cls, config):
-        cb = check_keys('body_frame',config)[1]
+        cb = check_keys(config, 'body_frame', context='body_frames')[0]
         cb['frame_id'] = cb.pop('id')
         if 'transform' in cb.keys():
             rot, pos, _from = config_transform(cb.pop('transform'))
