@@ -1,589 +1,535 @@
-### **accel_noise_density** (imu)
+### **accel_noise_density** ([imu](#imu-sensor))
 required: no  
-<pre> 
-accelerometer noise density - units: (m/s^2) * (1/sqrt(Hz))
- </pre> 
+
+ **description**: accelerometer noise density - units: (m/s^2) * (1/sqrt(Hz)) 
 <hr style="border:1px solid gray"> 
 
-### **accel_random_walk** (imu)
+### **accel_random_walk** ([imu](#imu-sensor))
 required: no  
-<pre> 
-accelerometer rate random walk - units: (m/s^3) * (1/sqrt(Hz))
- </pre> 
+
+ **description**: accelerometer rate random walk - units: (m/s^3) * (1/sqrt(Hz)) 
 <hr style="border:1px solid gray"> 
 
-### **align_axis** (rotation)
+### **align_axis** ([rotation_trajectory](#rotation_trajectory-trajectory))
 required: no  
-alternatives: [constant](#constant-rotation), [bspline_so3](#bspline_so3-rotation)  
-**subkeys**: [flip](#flip-align_axis), [axis](#axis-align_axis), [grounded_axis](#grounded_axis-align_axis), [vec](#vec-align_axis) 
-<pre> 
-arguments for rotation_align_axis function
- </pre> 
+**co-keys**: [bspline_so3](#bspline_so3-rotation_trajectory), [file](#file-rotation_trajectory), [constant](#constant-rotation_trajectory)  
+**sub-keys**: [grounded_axis](#grounded_axis-align_axis), [vec](#vec-align_axis), [flip](#flip-align_axis), [axis](#axis-align_axis) 
+
+ **description**: arguments for the [rotation_align_axis function](/vinlab/src/geometry_utils.py) 
 <hr style="border:1px solid gray"> 
 
-### **axis** (align_axis)
+### **align_axis** ([rotation](#rotation-rotate_about_point))
 required: no  
-<pre> 
-string, 'x','y', or 'z' axis to align with 'vec'
- </pre> 
+**sub-keys**: [grounded_axis](#grounded_axis-align_axis), [vec](#vec-align_axis), [flip](#flip-align_axis), [axis](#axis-align_axis) 
+
+ **description**: arguments for the [rotation_align_axis function](/vinlab/src/geometry_utils.py) 
 <hr style="border:1px solid gray"> 
 
-### **base_frame** (platform)
+### **axis** ([align_axis](#align_axis-rotation))
 required: no  
-<pre> 
-name of the base frame of the sensor platform. This is the frame that will follow the described trajectory, and the frame that the sensor and body frames are defined relative to, by default
- </pre> 
+
+ **description**: string, 'x','y', or 'z' axis to align with 'vec' 
 <hr style="border:1px solid gray"> 
 
-### **body_frame** (body_frames)
+### **base_frame** ([platform](#platform-scene))
 required: no  
-**subkeys**: [id](#id-body_frame), [transform](#transform-body_frame) 
-<pre> 
-fixed frame attached to the sensor platform
- </pre> 
+
+ **description**: name of the base frame of the sensor platform. This is the frame that will follow the described trajectory, and the frame that the sensor and body frames are defined relative to, by default 
 <hr style="border:1px solid gray"> 
 
-### **body_frames** (platform)
+### **body_frame** ([body_frames](#body_frames-platform))
 required: no  
-<pre> 
-list of body frames attached to the sensor platform
- </pre> 
+**sub-keys**: [transform](#transform-body_frame), [id](#id-body_frame) 
+
+ **description**: fixed frame attached to the sensor platform 
 <hr style="border:1px solid gray"> 
 
-### **bspline** (translation)
+### **body_frames** ([platform](#platform-scene))
 required: no  
-alternatives: [file](#file-translation), [constant](#constant-translation)  
-**subkeys**: [span_time](#span_time-bspline), [res](#res-bspline), [control_points](#control_points-bspline), [degree](#degree-bspline) 
-<pre> 
-uniform bspline trajectory - generates spline of position values from set of control points
- </pre> 
+
+ **description**: list of body frames attached to the sensor platform 
 <hr style="border:1px solid gray"> 
 
-### **bspline_so3** (rotation)
+### **bspline** ([translation_trajectory](#translation_trajectory-transform))
 required: no  
-alternatives: [align_axis](#align_axis-rotation), [constant](#constant-rotation)  
-<pre> 
-NOT IMPLEMENTED: bspline rotation trajectory - generate spline of rotation values from set of control rotations
- </pre> 
+**co-keys**: [file](#file-translation_trajectory), [constant](#constant-translation_trajectory)  
+**sub-keys**: [control_points](#control_points-bspline), [span_time](#span_time-bspline), [degree](#degree-bspline), [res](#res-bspline) 
+
+ **description**: uniform bspline trajectory - generates spline of position values from set of control points 
 <hr style="border:1px solid gray"> 
 
-### **camera** (sensor)
+### **bspline_so3** ([rotation_trajectory](#rotation_trajectory-trajectory))
 required: no  
-alternatives: [imu](#imu-sensor)  
-**subkeys**: [width](#width-camera), [transform](#transform-camera), [intrinsics](#intrinsics-camera), [distortion](#distortion-camera), [height](#height-camera) 
-<pre> 
-description of camera sensor
- </pre> 
+**co-keys**: [file](#file-rotation_trajectory), [constant](#constant-rotation_trajectory), [align_axis](#align_axis-rotation_trajectory)  
+
+ **description**: NOT IMPLEMENTED: bspline rotation trajectory - generate spline of rotation values from set of control rotations 
 <hr style="border:1px solid gray"> 
 
-### **center** (random_points)
+### **camera** ([sensor](#sensor-sensors))
 required: no  
-<pre> 
-position center around which to generate the random points
- </pre> 
+**co-keys**: [imu](#imu-sensor)  
+**sub-keys**: [transform](#transform-camera), [height](#height-camera), [intrinsics](#intrinsics-camera), [distortion](#distortion-camera), [width](#width-camera) 
+
+ **description**: description of camera sensor 
 <hr style="border:1px solid gray"> 
 
-### **color** (feature)
+### **center** ([planar_points](#planar_points-feature))
 required: no  
-<pre> 
-color of all points in the set, given as string e.g. 'red', 'blue', 'green'. If not given, a repeating sequence of colors will be assigned
- </pre> 
+
+ **description**: position of the center of the plane 
 <hr style="border:1px solid gray"> 
 
-### **constant** (rotation)
+### **center** ([random_points](#random_points-feature))
 required: no  
-<pre> 
-NOT IMPLEMENTED: constant rotation value to apply to the trajectory
- </pre> 
+
+ **description**: position center around which to generate the random points 
 <hr style="border:1px solid gray"> 
 
-### **control_points** (bspline)
+### **color** ([feature](#feature-features))
+required: no  
+
+ **description**: color of all points in the set, given as string e.g. 'red', 'blue', 'green'. If not given, a repeating sequence of colors will be assigned 
+<hr style="border:1px solid gray"> 
+
+### **constant** ([rotation_trajectory](#rotation_trajectory-trajectory))
+required: no  
+
+ **description**: NOT IMPLEMENTED: constant rotation value to apply to the trajectory 
+<hr style="border:1px solid gray"> 
+
+### **control_points** ([bspline](#bspline-translation_trajectory))
 required: yes  
-**subkeys**: [points](#points-control_points), [file](#file-control_points) 
-<pre> 
-The set of 3D position points to use as bspline control points. For degree k, there must be at least k+1 control points
- </pre> 
+**sub-keys**: [file](#file-control_points), [points](#points-control_points) 
+
+ **description**: The set of 3D position points to use as bspline control points. For degree k, there must be at least k+1 control points 
 <hr style="border:1px solid gray"> 
 
-### **control_point_rate** (subsample_interpolate)
+### **control_point_rate** ([subsample_interpolate](#subsample_interpolate-trajectory))
 required: no  
-<pre> 
-rate at which to sample control points from the original trajectory
- </pre> 
+
+ **description**: rate at which to sample control points from the original trajectory 
 <hr style="border:1px solid gray"> 
 
-### **copy** (trajectory)
+### **copy** ([trajectory](#trajectory-trajectory_group))
 required: no  
-<pre> 
-NOT IMPLEMENTED: copy an existing trajectory
- </pre> 
+
+ **description**: NOT IMPLEMENTED: copy an existing trajectory 
 <hr style="border:1px solid gray"> 
 
-### **current_trajectory** (vec)
+### **current_trajectory** ([vec](#vec-align_axis))
 required: no  
-<pre> 
-Use the current trajectory's position, velocity, acceleration, or the bearing vectors from each position to its centroid as the source of vectors to align with 'axis'. Allowed values: 'pos', 'vel', 'acc', 'centroid'
- </pre> 
+
+ **description**: Use the current trajectory's position, velocity, acceleration, or the bearing vectors from each position to its centroid as the source of vectors to align with 'axis'. Allowed values: 'pos', 'vel', 'acc', 'centroid' 
 <hr style="border:1px solid gray"> 
 
-### **degree** (subsample_interpolate)
+### **degree** ([subsample_interpolate](#subsample_interpolate-trajectory))
 required: no  
-<pre> 
-degree of the bspline polynomial - equal to the bspline order minus 1
- </pre> 
+
+ **description**: degree of the bspline polynomial - equal to the bspline order minus 1 
 <hr style="border:1px solid gray"> 
 
-### **distortion** (camera)
+### **distortion** ([camera](#camera-sensor))
 required: no  
-<pre> 
-radtan lens distortion parameters to generate images format: [k1, k2, p1, p2]
- </pre> 
+
+ **description**: radtan lens distortion parameters to generate images format: [k1, k2, p1, p2] 
 <hr style="border:1px solid gray"> 
 
-### **enable_measurements** (sensor)
+### **enable_measurements** ([sensor](#sensor-sensors))
 required: no  
-<pre> 
-boolean: if true, compute simulated measurements from this sensor
- </pre> 
+
+ **description**: boolean: if true, compute simulated measurements from this sensor 
 <hr style="border:1px solid gray"> 
 
-### **feature** (features)
+### **feature** ([features](#features-scene))
 required: no  
-**subkeys**: [id](#id-feature), [random_points](#random_points-feature), [points](#points-feature), [planar_points](#planar_points-feature), [color](#color-feature) 
-<pre> 
-set of points and corresponding colors
- </pre> 
+**sub-keys**: [id](#id-feature), [color](#color-feature), [planar_points](#planar_points-feature), [points](#points-feature), [random_points](#random_points-feature) 
+
+ **description**: set of points and corresponding colors 
 <hr style="border:1px solid gray"> 
 
-### **features** (scene)
+### **features** ([scene](#scene))
 required: no  
-<pre> 
-list of features
- </pre> 
+
+ **description**: list of features 
 <hr style="border:1px solid gray"> 
 
-### **file** (trajectory)
+### **file** ([trajectory](#trajectory-trajectory_group))
 required: no  
-alternatives: [translation](#translation-trajectory), [rotation](#rotation-trajectory), [subsample_interpolate](#subsample_interpolate-trajectory), [copy](#copy-trajectory)  
-**subkeys**: [format](#format-file), [path](#path-file), [jpl](#jpl-file), [time_unit](#time_unit-file) 
-<pre> 
-file information for the trajectory data
- </pre> 
+**co-keys**: [translation_trajectory](#translation_trajectory-trajectory), [rotation_trajectory](#rotation_trajectory-trajectory), [subsample_interpolate](#subsample_interpolate-trajectory), [copy](#copy-trajectory)  
+**sub-keys**: [format](#format-file), [path](#path-file), [jpl](#jpl-file), [time_unit](#time_unit-file) 
+
+ **description**: file information for the trajectory data 
 <hr style="border:1px solid gray"> 
 
-### **file** (control_points)
+### **file** ([control_points](#control_points-bspline))
 required: no  
-alternatives: [points](#points-control_points)  
-**subkeys**: [format](#format-file), [path](#path-file) 
-<pre> 
-NOT IMPLEMENTED: file containing list of 3D position points to use as bspline control points
- </pre> 
+**co-keys**: [points](#points-control_points)  
+**sub-keys**: [format](#format-file), [path](#path-file) 
+
+ **description**: NOT IMPLEMENTED: file containing list of 3D position points to use as bspline control points 
 <hr style="border:1px solid gray"> 
 
-### **flip** (align_axis)
+### **flip** ([align_axis](#align_axis-rotation))
 required: no  
-<pre> 
-boolean: if true, the 'grounded' axis will be negated, giving the other available solution
- </pre> 
+
+ **description**: boolean: if true, the 'grounded' axis will be negated, giving the other available solution 
 <hr style="border:1px solid gray"> 
 
-### **format** (file)
+### **format** ([file](#file-control_points))
 required: no  
-<pre> 
-format of the file containing position and/or rotation data example: 't x y z qx qy qz qw' separated by spaces or comma according to file, use dashes to indicate columns to ignore, e.g. 't,x,y,z,-,-,-,qx,qy,qz,qw' 
- </pre> 
+
+ **description**: format of the file containing position and/or rotation data example: 't x y z qx qy qz qw' separated by spaces or comma according to file, use dashes to indicate columns to ignore, e.g. 't,x,y,z,-,-,-,qx,qy,qz,qw'  
 <hr style="border:1px solid gray"> 
 
-### **from** (transform)
+### **from** ([transform](#transform-body_frames))
 required: no  
-<pre> 
-name of the parent frame, relative to which to define the transform
- </pre> 
+
+ **description**: name of the parent frame, relative to which to define the transform 
 <hr style="border:1px solid gray"> 
 
-### **grounded_axis** (align_axis)
+### **grounded_axis** ([align_axis](#align_axis-rotation))
 required: no  
-<pre> 
-string, 'x','y', or 'z' axis to remain parallel to the original xy-plane. cannot be the same as 'axis' param. if not provided, it will be the next sequential axis after 'axis' (x->y, y->z, z->x).
- </pre> 
+
+ **description**: string, 'x','y', or 'z' axis to remain parallel to the original xy-plane. cannot be the same as 'axis' param. if not provided, it will be the next sequential axis after 'axis' (x->y, y->z, z->x). 
 <hr style="border:1px solid gray"> 
 
-### **gyro_noise_density** (imu)
+### **gyro_noise_density** ([imu](#imu-sensor))
 required: no  
-<pre> 
-gyro noise density - units: (rad/s^2) * (1/sqrt(Hz))
- </pre> 
+
+ **description**: gyro noise density - units: (rad/s^2) * (1/sqrt(Hz)) 
 <hr style="border:1px solid gray"> 
 
-### **gyro_random_walk** (imu)
+### **gyro_random_walk** ([imu](#imu-sensor))
 required: no  
-<pre> 
-gyro rate random walk - units: (rad/s^2) * (1/sqrt(Hz))
- </pre> 
+
+ **description**: gyro rate random walk - units: (rad/s^2) * (1/sqrt(Hz)) 
 <hr style="border:1px solid gray"> 
 
-### **height** (camera)
+### **height** ([camera](#camera-sensor))
 required: no  
-<pre> 
-height in pixels of the camera images to generate
- </pre> 
+
+ **description**: height in pixels of the camera images to generate 
 <hr style="border:1px solid gray"> 
 
-### **id** (trajectory)
+### **id** ([trajectory](#trajectory-trajectory_group))
 required: no  
-<pre> 
-name of the trajectory
- </pre> 
+
+ **description**: name of the trajectory 
 <hr style="border:1px solid gray"> 
 
-### **id** (platform)
+### **id** ([platform](#platform-scene))
 required: no  
-<pre> 
-name of the platform
- </pre> 
+
+ **description**: name of the platform 
 <hr style="border:1px solid gray"> 
 
-### **id** (sensor)
+### **id** ([sensor](#sensor-sensors))
 required: no  
-<pre> 
-name of the sensor
- </pre> 
+
+ **description**: name of the sensor 
 <hr style="border:1px solid gray"> 
 
-### **id** (feature)
+### **id** ([feature](#feature-features))
 required: no  
-<pre> 
-name of the feature
- </pre> 
+
+ **description**: name of the feature 
 <hr style="border:1px solid gray"> 
 
-### **id** (body_frame)
+### **id** ([body_frame](#body_frame-body_frames))
 required: no  
-<pre> 
-name of the body frame
- </pre> 
+
+ **description**: name of the body frame 
 <hr style="border:1px solid gray"> 
 
-### **imu** (sensor)
+### **imu** ([sensor](#sensor-sensors))
 required: no  
-alternatives: [camera](#camera-sensor)  
-**subkeys**: [gyro_noise_density](#gyro_noise_density-imu), [accel_random_walk](#accel_random_walk-imu), [gyro_random_walk](#gyro_random_walk-imu), [accel_noise_density](#accel_noise_density-imu) 
-<pre> 
-description of imu sensor
- </pre> 
+**co-keys**: [camera](#camera-sensor)  
+**sub-keys**: [gyro_noise_density](#gyro_noise_density-imu), [accel_noise_density](#accel_noise_density-imu), [accel_random_walk](#accel_random_walk-imu), [gyro_random_walk](#gyro_random_walk-imu) 
+
+ **description**: description of imu sensor 
 <hr style="border:1px solid gray"> 
 
-### **intrinsics** (camera)
+### **intrinsics** ([camera](#camera-sensor))
 required: no  
-<pre> 
-camera intrinsic parameter values to generate images format: [fx, fy, cx, cy]
- </pre> 
+
+ **description**: camera intrinsic parameter values to generate images format: [fx, fy, cx, cy] 
 <hr style="border:1px solid gray"> 
 
-### **jpl** (file)
+### **jpl** ([file](#file-control_points))
 required: no  
-<pre> 
-boolean: if true, assume the file contains jpl quaternions, otherwise hamilton quaternions
- </pre> 
+
+ **description**: boolean: if true, assume the file contains jpl quaternions, otherwise hamilton quaternions 
 <hr style="border:1px solid gray"> 
 
-### **main** (trajectory_group)
+### **main** ([trajectory_group](#trajectory_group-scene))
 required: no  
-<pre> 
-name of the main trajectory in the group
- </pre> 
+
+ **description**: name of the main trajectory in the group 
 <hr style="border:1px solid gray"> 
 
-### **modify** (trajectory)
+### **modify** ([trajectory](#trajectory-trajectory_group))
 required: no  
-**subkeys**: [scale](#scale-modify), [shift](#shift-modify), [rotate_about_point](#rotate_about_point-modify) 
-<pre> 
-NOT IMPLEMENTED modify a trajectory by scaling, shifting, and/or rotating about a point
- </pre> 
+**sub-keys**: [scale](#scale-modify), [rotate_about_point](#rotate_about_point-modify), [shift](#shift-modify) 
+
+ **description**: NOT IMPLEMENTED modify a trajectory by scaling, shifting, and/or rotating about a point 
 <hr style="border:1px solid gray"> 
 
-### **negate** (vec)
+### **negate** ([vec](#vec-align_axis))
 required: no  
-<pre> 
-boolean: if true, negate the vector(s) to align the specified axis
- </pre> 
+
+ **description**: boolean: if true, negate the vector(s) to align the specified axis 
 <hr style="border:1px solid gray"> 
 
-### **normal** (planar_points)
+### **normal** ([planar_points](#planar_points-feature))
 required: no  
-<pre> 
-normal vector of the plane
- </pre> 
+
+ **description**: normal vector of the plane 
 <hr style="border:1px solid gray"> 
 
-### **num** (planar_points)
+### **num** ([planar_points](#planar_points-feature))
 required: no  
-<pre> 
-number of coplanar points to generate
- </pre> 
+
+ **description**: number of coplanar points to generate 
 <hr style="border:1px solid gray"> 
 
-### **num** (random_points)
+### **num** ([random_points](#random_points-feature))
 required: no  
-<pre> 
-number of random points to generate
- </pre> 
+
+ **description**: number of random points to generate 
 <hr style="border:1px solid gray"> 
 
-### **path** (file)
+### **path** ([file](#file-control_points))
 required: no  
-<pre> 
-path to the file containing position and/or rotation data
- </pre> 
+
+ **description**: path to the file containing position and/or rotation data 
 <hr style="border:1px solid gray"> 
 
-### **planar_points** (feature)
+### **planar_points** ([feature](#feature-features))
 required: no  
-alternatives: [points](#points-feature), [random_points](#random_points-feature)  
-**subkeys**: [center](#center-planar_points), [normal](#normal-planar_points), [num](#num-planar_points), [radius](#radius-planar_points), [grid_spacing](#grid_spacing-planar_points) 
-<pre> 
-None
- </pre> 
+**co-keys**: [points](#points-feature), [random_points](#random_points-feature)  
+**sub-keys**: [radius](#radius-planar_points), [num](#num-planar_points), [normal](#normal-planar_points), [grid_spacing](#grid_spacing-planar_points), [center](#center-planar_points) 
+
+ **description**: None 
 <hr style="border:1px solid gray"> 
 
-### **platform** (scene)
+### **platform** ([scene](#scene))
 required: yes  
-**subkeys**: [sensors](#sensors-platform), [id](#id-platform), [base_frame](#base_frame-platform), [body_frames](#body_frames-platform) 
-<pre> 
-sensor platform containing sensors and/or body frames
- </pre> 
+**sub-keys**: [sensors](#sensors-platform), [body_frames](#body_frames-platform), [base_frame](#base_frame-platform), [id](#id-platform) 
+
+ **description**: sensor platform containing sensors and/or body frames 
 <hr style="border:1px solid gray"> 
 
-### **points** (feature)
+### **point** ([rotate_about_point](#rotate_about_point-modify))
 required: no  
-<pre> 
-list of 3D points
- </pre> 
+
+ **description**: global position point about which to rotate the trajectory 
 <hr style="border:1px solid gray"> 
 
-### **points** (control_points)
+### **points** ([feature](#feature-features))
 required: no  
-<pre> 
-list of 3D position points to use as bspline control points
- </pre> 
+
+ **description**: list of 3D points 
 <hr style="border:1px solid gray"> 
 
-### **radius** (planar_points)
+### **points** ([control_points](#control_points-bspline))
 required: no  
-<pre> 
-max distance from the center of the plane
- </pre> 
+
+ **description**: list of 3D position points to use as bspline control points 
 <hr style="border:1px solid gray"> 
 
-### **radius** (random_points)
+### **radius** ([planar_points](#planar_points-feature))
 required: no  
-<pre> 
-max distance from the center of the point set
- </pre> 
+
+ **description**: max distance from the center of the plane 
 <hr style="border:1px solid gray"> 
 
-### **random_points** (feature)
+### **radius** ([random_points](#random_points-feature))
 required: no  
-alternatives: [points](#points-feature), [planar_points](#planar_points-feature)  
-**subkeys**: [center](#center-random_points), [radius](#radius-random_points), [num](#num-random_points) 
-<pre> 
-arguments for random_point_set function
- </pre> 
+
+ **description**: max distance from the center of the point set 
 <hr style="border:1px solid gray"> 
 
-### **reference** (trajectory_group)
+### **random_points** ([feature](#feature-features))
 required: no  
-<pre> 
-name of the reference trajectory in the group
- </pre> 
+**co-keys**: [points](#points-feature), [planar_points](#planar_points-feature)  
+**sub-keys**: [radius](#radius-random_points), [num](#num-random_points), [center](#center-random_points) 
+
+ **description**: arguments for random_point_set function 
 <hr style="border:1px solid gray"> 
 
-### **res** (bspline)
+### **reference** ([trajectory_group](#trajectory_group-scene))
 required: no  
-<pre> 
-resolution of the bspline curve
- </pre> 
+
+ **description**: name of the reference trajectory in the group 
 <hr style="border:1px solid gray"> 
 
-### **rotate_about_point** (modify)
+### **res** ([bspline](#bspline-translation_trajectory))
 required: no  
-**subkeys**: [rotation](#rotation-rotate_about_point) 
-<pre> 
-rotate entire trajectory about a point in space - transforms both position and rotation values along the trajectory
- </pre> 
+
+ **description**: resolution of the bspline curve 
 <hr style="border:1px solid gray"> 
 
-### **rotation** (trajectory)
+### **rotate_about_point** ([modify](#modify-trajectory))
 required: no  
-alternatives: [file](#file-trajectory), [translation](#translation-trajectory), [subsample_interpolate](#subsample_interpolate-trajectory), [copy](#copy-trajectory)  
-**subkeys**: [constant](#constant-rotation), [bspline_so3](#bspline_so3-rotation), [align_axis](#align_axis-rotation) 
-<pre> 
-rotation trajectory - generate a sequence of rotation values over time
- </pre> 
+**sub-keys**: [point](#point-rotate_about_point), [rotation](#rotation-rotate_about_point) 
+
+ **description**: rotate entire trajectory about a point in space - transforms both position and rotation values along the trajectory 
 <hr style="border:1px solid gray"> 
 
-### **rotation** (transform)
+### **rotation** ([transform](#transform-body_frames))
 required: no  
-<pre> 
-x-y-z fixed-axis euler angles in degrees from base frame to this sensor frame
- </pre> 
+
+ **description**: x-y-z fixed-axis euler angles in degrees from base frame to this sensor frame 
 <hr style="border:1px solid gray"> 
 
-### **rotation** (rotate_about_point)
+### **rotation** ([rotate_about_point](#rotate_about_point-modify))
 required: no  
-<pre> 
- NOT IMPLEMENTED: x-y-z fixed-axis euler angles in degrees to apply to the trajectory about a fixed point
- </pre> 
+
+ **description**:  NOT IMPLEMENTED: x-y-z fixed-axis euler angles in degrees to apply to the trajectory about a fixed point 
 <hr style="border:1px solid gray"> 
 
-### **rotation_only** (subsample_interpolate)
+### **rotation_only** ([subsample_interpolate](#subsample_interpolate-trajectory))
 required: no  
-<pre> 
-translation value in the trajectory will be zero at all times
- </pre> 
+
+ **description**: translation value in the trajectory will be zero at all times 
 <hr style="border:1px solid gray"> 
 
-### **scale** (modify)
+### **rotation_trajectory** ([trajectory](#trajectory-trajectory_group))
 required: no  
-<pre> 
-NOT IMPLEMENTED: scale all position values in the trajectory by this value
- </pre> 
+**co-keys**: [file](#file-trajectory), [translation_trajectory](#translation_trajectory-trajectory), [subsample_interpolate](#subsample_interpolate-trajectory), [copy](#copy-trajectory)  
+**sub-keys**: [bspline_so3](#bspline_so3-rotation_trajectory), [constant](#constant-rotation_trajectory), [align_axis](#align_axis-rotation_trajectory), [file](#file-rotation_trajectory) 
+
+ **description**: rotation component of the trajectory 
 <hr style="border:1px solid gray"> 
 
-### **scene** ()
+### **scale** ([modify](#modify-trajectory))
 required: no  
-**subkeys**: [features](#features-scene), [platform](#platform-scene), [trajectory_group](#trajectory_group-scene) 
-<pre> 
-Specify a visual-inertial scene containing trajectory group, sensor platform, and features.
- </pre> 
+
+ **description**: NOT IMPLEMENTED: scale all position values in the trajectory by this value 
 <hr style="border:1px solid gray"> 
 
-### **sensor** (sensors)
+### **scene**
 required: no  
-**subkeys**: [imu](#imu-sensor), [id](#id-sensor), [transform](#transform-sensor), [time_offset](#time_offset-sensor), [camera](#camera-sensor), [rate](#rate-sensor), [enable_measurements](#enable_measurements-sensor) 
-<pre> 
-camera or imu sensor rigidly attached to the sensor platform
- </pre> 
+**sub-keys**: [trajectory_group](#trajectory_group-scene), [platform](#platform-scene), [features](#features-scene) 
+
+ **description**: Specify a visual-inertial scene containing trajectory group, sensor platform, and features. 
 <hr style="border:1px solid gray"> 
 
-### **shift** (modify)
+### **sensor** ([sensors](#sensors-platform))
 required: no  
-<pre> 
-NOT IMPLEMENTED: shift all position values in the trajectory by this position vector
- </pre> 
+**sub-keys**: [transform](#transform-sensor), [rate](#rate-sensor), [time_offset](#time_offset-sensor), [id](#id-sensor), [imu](#imu-sensor), [camera](#camera-sensor), [enable_measurements](#enable_measurements-sensor) 
+
+ **description**: camera or imu sensor rigidly attached to the sensor platform 
 <hr style="border:1px solid gray"> 
 
-### **span_time** (bspline)
+### **shift** ([modify](#modify-trajectory))
 required: no  
-<pre> 
-time in seconds to traverse a single span of the bspline curve
- </pre> 
+
+ **description**: NOT IMPLEMENTED: shift all position values in the trajectory by this position vector 
 <hr style="border:1px solid gray"> 
 
-### **subsample_interpolate** (trajectory)
+### **span_time** ([bspline](#bspline-translation_trajectory))
 required: no  
-alternatives: [file](#file-trajectory), [translation](#translation-trajectory), [rotation](#rotation-trajectory), [copy](#copy-trajectory)  
-**subkeys**: [translation_only](#translation_only-subsample_interpolate), [control_point_rate](#control_point_rate-subsample_interpolate), [rotation_only](#rotation_only-subsample_interpolate), [super_id](#super_id-subsample_interpolate), [degree](#degree-subsample_interpolate) 
-<pre> 
-subsample an existing trajectory and use the resulting positions as control points for a new trajectory
- </pre> 
+
+ **description**: time in seconds to traverse a single span of the bspline curve 
 <hr style="border:1px solid gray"> 
 
-### **super_id** (subsample_interpolate)
+### **subsample_interpolate** ([trajectory](#trajectory-trajectory_group))
 required: no  
-<pre> 
-existing id of the trajectory to subsample and use as control points
- </pre> 
+**co-keys**: [file](#file-trajectory), [translation_trajectory](#translation_trajectory-trajectory), [rotation_trajectory](#rotation_trajectory-trajectory), [copy](#copy-trajectory)  
+**sub-keys**: [super_id](#super_id-subsample_interpolate), [control_point_rate](#control_point_rate-subsample_interpolate), [translation_only](#translation_only-subsample_interpolate), [degree](#degree-subsample_interpolate), [rotation_only](#rotation_only-subsample_interpolate) 
+
+ **description**: subsample an existing trajectory and use the resulting positions as control points for a new trajectory 
 <hr style="border:1px solid gray"> 
 
-### **sensors** (platform)
+### **super_id** ([subsample_interpolate](#subsample_interpolate-trajectory))
 required: no  
-<pre> 
-list of sensors attached to the sensor platform
- </pre> 
+
+ **description**: existing id of the trajectory to subsample and use as control points 
 <hr style="border:1px solid gray"> 
 
-### **time_offset** (sensor)
+### **sensors** ([platform](#platform-scene))
 required: no  
-<pre> 
-NOT IMPLEMENTED: time offset in seconds to apply to the sensor measurements
- </pre> 
+
+ **description**: list of sensors attached to the sensor platform 
 <hr style="border:1px solid gray"> 
 
-### **time_unit** (file)
+### **time_offset** ([sensor](#sensor-sensors))
 required: no  
-<pre> 
-The unit of time used in the file. Allowed values: s, ms, us, ns
- </pre> 
+
+ **description**: NOT IMPLEMENTED: time offset in seconds to apply to the sensor measurements 
 <hr style="border:1px solid gray"> 
 
-### **trajectory** (trajectory_group)
+### **time_unit** ([file](#file-control_points))
 required: no  
-**subkeys**: [id](#id-trajectory), [file](#file-trajectory), [copy](#copy-trajectory), [subsample_interpolate](#subsample_interpolate-trajectory) 
-<pre> 
-trajectory containing a sequence of position rotation values
- </pre> 
+
+ **description**: The unit of time used in the file. Allowed values: s, ms, us, ns 
 <hr style="border:1px solid gray"> 
 
-### **trajectory_group** (scene)
+### **trajectories** ([trajectory_group](#trajectory_group-scene))
+required: no  
+
+ **description**: list of trajectories to compare 
+<hr style="border:1px solid gray"> 
+
+### **trajectory** ([trajectory_group](#trajectory_group-scene))
+required: no  
+**sub-keys**: [file](#file-trajectory), [id](#id-trajectory), [subsample_interpolate](#subsample_interpolate-trajectory), [copy](#copy-trajectory), [rotation_trajectory](#rotation_trajectory-trajectory), [translation_trajectory](#translation_trajectory-trajectory) 
+
+ **description**: trajectory containing a sequence of position rotation values 
+<hr style="border:1px solid gray"> 
+
+### **trajectory_group** ([scene](#scene))
 required: yes  
-**subkeys**: [trajectories](#trajectories-trajectory_group), [reference](#reference-trajectory_group), [main](#main-trajectory_group) 
-<pre> 
-set of representations of a single trajectory to be compared - i.e. the estimate and the ground truth 
- </pre> 
+**sub-keys**: [reference](#reference-trajectory_group), [main](#main-trajectory_group), [trajectories](#trajectories-trajectory_group) 
+
+ **description**: set of representations of a single trajectory to be compared - i.e. the estimate and the ground truth  
 <hr style="border:1px solid gray"> 
 
-### **transform** (sensor)
+### **transform** ([sensor](#sensor-sensors))
 required: no  
-**subkeys**: [rotation](#rotation-transform), [translation](#translation-transform), [from](#from-transform) 
-<pre> 
-Transformation to this sensor frame. By default, relative to the 'base frame' of this platform unless, 'from' is specified
- </pre> 
+**sub-keys**: [from](#from-transform), [translation](#translation-transform), [rotation](#rotation-transform) 
+
+ **description**: Transformation to this sensor frame. By default, relative to the 'base frame' of this platform unless, 'from' is specified 
 <hr style="border:1px solid gray"> 
 
-### **transform** (body_frame)
+### **transform** ([body_frames](#body_frames-platform))
+required: no  
+**sub-keys**: [from](#from-transform), [translation](#translation-transform), [rotation](#rotation-transform) 
+
+ **description**: Transformation to this body frame. By default, relative to the 'base frame' of this platform, unless 'from' is specified 
+<hr style="border:1px solid gray"> 
+
+### **translation_trajectory** ([trajectory](#trajectory-trajectory_group))
+required: no  
+**co-keys**: [file](#file-trajectory), [rotation_trajectory](#rotation_trajectory-trajectory), [subsample_interpolate](#subsample_interpolate-trajectory), [copy](#copy-trajectory)  
+**sub-keys**: [constant](#constant-translation_trajectory), [file](#file-translation_trajectory), [bspline](#bspline-translation_trajectory) 
+
+ **description**: translation component of the trajectory 
+<hr style="border:1px solid gray"> 
+
+### **translation_trajectory** ([transform](#transform-body_frames))
+required: no  
+
+ **description**: translation from base frame to this sensor frame 
+<hr style="border:1px solid gray"> 
+
+### **translation_only** ([subsample_interpolate](#subsample_interpolate-trajectory))
+required: no  
+
+ **description**: rotation value in the trajectory will be identity at all times 
+<hr style="border:1px solid gray"> 
+
+### **vec** ([align_axis](#align_axis-rotation))
 required: yes  
-**subkeys**: [rotation](#rotation-transform), [from](#from-transform), [translation](#translation-transform), [jpl](#jpl-transform) 
-<pre> 
-Transformation to this body frame. By default, relative to the 'base frame' of this platform, unless 'from' is specified
- </pre> 
+**sub-keys**: [negate](#negate-vec), [current_trajectory](#current_trajectory-vec) 
+
+ **description**: vector(s) to align with the specified axis 
 <hr style="border:1px solid gray"> 
 
-### **translation** (trajectory)
+### **width** ([camera](#camera-sensor))
 required: no  
-alternatives: [file](#file-trajectory), [rotation](#rotation-trajectory), [subsample_interpolate](#subsample_interpolate-trajectory), [copy](#copy-trajectory)  
-**subkeys**: [constant](#constant-translation), [bspline](#bspline-translation), [file](#file-translation) 
-<pre> 
-translation component of the trajectory
- </pre> 
-<hr style="border:1px solid gray"> 
 
-### **translation** (transform)
-required: no  
-<pre> 
-translation from base frame to this sensor frame
- </pre> 
-<hr style="border:1px solid gray"> 
-
-### **translation_only** (subsample_interpolate)
-required: no  
-<pre> 
-rotation value in the trajectory will be identity at all times
- </pre> 
-<hr style="border:1px solid gray"> 
-
-### **vec** (align_axis)
-required: yes  
-**subkeys**: [negate](#negate-vec), [current_trajectory](#current_trajectory-vec) 
-<pre> 
-vector(s) to align with the specified axis
- </pre> 
-<hr style="border:1px solid gray"> 
-
-### **width** (camera)
-required: no  
-<pre> 
-width in pixels of the camera images to generate
- </pre> 
+ **description**: width in pixels of the camera images to generate 
 <hr style="border:1px solid gray"> 
 
