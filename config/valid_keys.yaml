@@ -20,7 +20,9 @@ accel_random_walk:
 
 align_axis:
   - context: rotation_trajectory
-    description: "arguments for the [rotation_align_axis function](/vinlab/src/geometry_utils.py)"
+    description: "arguments for the [rotation_align_axis function](/vinlab/src/geometry_utils.py).
+                  Compute the rotation(s) that aligns given axis with the given vector(s), 
+                  and keeps one other axis parallel to the original xy-plane (ground plane)"
     subkeys:
       required: [axis, vec, grounded_axis, flip]
       required_exclusive: []
@@ -82,7 +84,7 @@ camera:
     subkeys:
       required: [height, width, intrinsics]
       required_exclusive: []
-      optional: [distortion, transform]
+      optional: [distortion]
       codependent: []
 
 center:
@@ -180,6 +182,10 @@ format:
 from:
   - context: transform
     description: "name of the parent frame, relative to which to define the transform"
+
+grid_spacing:
+  - context: planar_points
+    description: "uniform spacing used to construct grid of points on the plane"
 
 grounded_axis:
   - context: align_axis
@@ -360,6 +366,10 @@ sensor:
       required_exclusive: [imu, camera]
       optional: [transform, time_offset]
       codependent: []
+
+sensors:
+  - context: platform
+    description: "list of sensors attached to the sensor platform"
     
 shift:
   - context: modify
@@ -381,10 +391,6 @@ subsample_interpolate:
 super_id:
   - context: subsample_interpolate
     description: "existing id of the trajectory to subsample and use as control points"
-
-sensors:
-  - context: platform
-    description: "list of sensors attached to the sensor platform"
 
 time_offset:
   - context: sensor
@@ -427,7 +433,7 @@ transform:
       optional: [from]
       codependent: []
 
-  - context: body_frames
+  - context: body_frame
     description: "Transformation to this body frame. By default, relative to the 'base frame' of this platform, unless 'from' is specified"  
     subkeys:
       required: [translation, rotation]
@@ -435,6 +441,10 @@ transform:
       optional: [from]
       codependent: []
     
+translation:
+  - context: transform
+    description: "translation from base frame to this sensor frame"
+
 translation_trajectory:
   - context: trajectory
     description: "translation component of the trajectory"
@@ -444,8 +454,6 @@ translation_trajectory:
       optional: []
       codependent: []
 
-  - context: transform
-    description: "translation from base frame to this sensor frame"
 
 translation_only:
   - context: subsample_interpolate
