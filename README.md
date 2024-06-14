@@ -147,7 +147,11 @@ features:
 ```
 </details>
 
-https://github.com/jessebloecker/vinlab/assets/29802265/815486bf-6d41-4584-a26d-bc99d16f060b
+
+
+https://github.com/jessebloecker/vinlab/assets/29802265/985267c3-2f20-4b27-b573-2a3f9129169e
+
+
 
 
 Vinlab contains Python and C++ and uses [Scipy](https://scipy.org/), [OpenCV](https://opencv.org/), [ROS2](https://docs.ros.org/en/humble/index.html), and [Eigen](https://eigen.tuxfamily.org/dox/GettingStarted.html)
