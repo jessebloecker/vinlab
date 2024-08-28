@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 import numpy as np
-from geometry_utils import as_scipy_rotation
 import yaml
+from geometry_utils import as_scipy_rotation
+from os.path import dirname, abspath, split
+from subprocess import check_output
+import datetime
+
 
 
 class ConfigurationError(Exception):
@@ -32,7 +36,7 @@ def check_keys(config, name, context):
         spec = all_specs[name]
         valid = next(i for i in spec if i['context'] == context) 
     except (KeyError, StopIteration):
-        raise ConfigurationError('\'{}\', \'{}\' do not form a valid name and context'.format(name,context))
+        raise ConfigurationError('\'{}\' and \'{}\' do not form a valid name and context'.format(name,context))
     
     subkeys = valid['subkeys']
     req = set(subkeys['required'])
@@ -80,3 +84,31 @@ def config_transform(config):
     return (rot,pos,_from)
 
 
+def set_output(config,config_file=None):
+    """
+    make output directories and generate a string representation according to the output configuration in the scene config file.
+    """
+    check_keys(config, 'output', 'scene')
+    vinlab_base = dirname(dirname(abspath(__file__))) #works as long as this file remains two directories deep from vinlab base
+    vinlab_output_path = vinlab_base +'/output'
+    vinlab_commit = check_output(['git', 'rev-parse', '--short', 'HEAD'],cwd=vinlab_base).decode('ascii').strip()
+    config_name = split(config_file)[1].replace('.yaml','')
+    now = datetime.datetime.now().strftime("%Y.%m.%d.%H%M%S")
+    dataset_path = vinlab_base+'/output/'+'{}.{}'.format(now,config_name)
+    print('dataset_path:',dataset_path)
+
+    s = 'DATASET_PATH {} VINLAB_COMMIT {} '.format(dataset_path, vinlab_commit)
+    str_map = {'images':{'enable_individual': 'ENABLE_INDIVIDUAL_IMAGES',
+                         'enable_combined': 'ENABLE_COMBINED_IMAGES',
+                         'enable_info': 'ENABLE_IMAGE_INFO'},
+               'video':{'enable_individual': 'ENABLE_INDIVIDUAL_VIDEOS',
+                        'enable_combined': 'ENABLE_COMBINED_VIDEO'},
+               'imu_data':{'enable':'ENABLE_IMU_DATA'},
+               'rosbag2':{'enable':'ENABLE_ROSBAG2'}}
+    for d in str_map.keys():
+        for k,v in str_map[d].items():
+            s += '{} {} '.format(v, int((config[d][k])))
+    return s
+   
+# if __name__ == '__main__':
+#     set_output('config.yaml')

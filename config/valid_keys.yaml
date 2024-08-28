@@ -262,6 +262,15 @@ num:
   - context: random_points
     description: "number of random points to generate"
 
+output: 
+  - context: scene
+    description: "output data configuration"
+    subkeys:
+      required: [images, imu_data, video, rosbag2]
+      required_exclusive: []
+      optional: []
+      codependent: []
+      
 path:
   - context: file
     description: "path to the file containing position and/or rotation data"
@@ -355,7 +364,7 @@ scene:
     subkeys: 
       required: [trajectory_group, platform]
       required_exclusive: []
-      optional: [features]
+      optional: [features, output]
       codependent: []
 
 sensor:
@@ -375,6 +384,10 @@ shift:
   - context: modify
     description: "NOT IMPLEMENTED: shift all position values in the trajectory by this position vector"
 
+source_trajectory:
+  - context: subsample_interpolate
+    description: "existing id of the trajectory to subsample and use as control points"
+
 span_time:
   - context: bspline
     description: "time in seconds to traverse a single span of the bspline curve"
@@ -383,14 +396,10 @@ subsample_interpolate:
   - context: trajectory
     description: "subsample an existing trajectory and use the resulting positions as control points for a new trajectory"
     subkeys:
-      required: [super_id, control_point_rate, degree]
+      required: [source_trajectory, control_point_rate, degree]
       required_exclusive: []
       optional: [translation_only, rotation_only]
       codependent: []
-
-super_id:
-  - context: subsample_interpolate
-    description: "existing id of the trajectory to subsample and use as control points"
 
 time_offset:
   - context: sensor

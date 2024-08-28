@@ -5,12 +5,13 @@ import yaml
 from trajectory_group import TrajectoryGroup
 from sensor_platform import SensorPlatform
 from feature import Feature, PointSet
-from config_utils import check_keys
+from config_utils import check_keys, set_output
+import datetime
 
 np.set_printoptions(precision=4, suppress=True)
 
 class Scene():
-    def __init__(self, config_file, trajectory_group, platform=None, features=None):
+    def __init__(self, config_file, trajectory_group, platform=None, features=None, output_config=None):
         """
         A scene contains a trajectory group, sensor platform, and/or a set of features.
         Feature positions in each camera fame at all times and their corresponding measurements are
@@ -21,6 +22,7 @@ class Scene():
         self.trajectory_group = trajectory_group
         self.platform = platform
         self.features = features
+        self.output_config = output_config
 
         if platform is not None:
             self.trajectory_group.moving_frame = platform.base_frame
@@ -42,7 +44,7 @@ class Scene():
         cam_ids = [i for i in features['all'].points.keys() if i != 'global']
         for i in cam_ids:
             if platform.sensors[i].enable_measurements:
-                # print('computing feature measurements for camera: ', i)
+                print('computing feature measurements for camera: ', i)
                 m = self.get_feature_measurements(i)
                 measurements[i] = m
             elif v.type == 'imu':
@@ -59,6 +61,7 @@ class Scene():
         config = check_keys(yaml.load(open(config_file),Loader=yaml.FullLoader),'scene', context=None)[0]
         trajectory_group = TrajectoryGroup.config(config['trajectory_group'])
         platform = SensorPlatform.config(config['platform'])
+        output_config = set_output(config['output'],config_file)
 
         if 'features' in config.keys():
             cf = config['features']
@@ -67,7 +70,7 @@ class Scene():
                 f = Feature.config(cf[i])
                 features[f.id] = f
 
-        return cls(config_file, trajectory_group, platform, features)
+        return cls(config_file, trajectory_group, platform, features, output_config)
     
     def get_feature_positions(self, frame_id, feats_id='all', start=0.0):
         """
@@ -113,7 +116,7 @@ class Scene():
         assert gPgf.shape == (1,3,m)
         assert gPgc.shape == (n,3,1)
 
-        cRg = np.swapaxes(gRc,1,2) # n x 3 x 3 (transpose each rotation matrix)
+        cRg = gRc.swapaxes(1,2) # n x 3 x 3 (transpose each rotation matrix)
         assert cRg.shape == (n,3,3)
 
         cPcg = (-cRg@gPgc).swapaxes(1,2) # n x 3 x 3 @ n x 3 x 1 = n x 3 x 1 -> swapaxes -> n x 1 x 3
@@ -147,7 +150,7 @@ class Scene():
         xy = xy1[:,0:2] # n*m x 2
 
         #apply distortion if distortion coefficients were provided
-        if platform.sensors[frame_id].distortion is None: # using 'is not None' instead of '!= None' doesn't work here for some reason
+        if platform.sensors[frame_id].distortion is not None: # using 'is not None' instead of '!= None' doesn't work here for some reason
             coefficients = platform.sensors[frame_id].distortion
             xy = self.radtan_distort(xy,coefficients)
         xy1[:,0:2] = xy
@@ -192,7 +195,7 @@ class Scene():
         """
         # get acceleration value in the imu frame 
         # get angular velocity in the imu frame
-        # apply noise
+        # apply noise_density
         # measurement = [w_x, w_y, w_z, a_x, a_y, a_z]
         pass
 
@@ -252,8 +255,8 @@ class Scene():
             print(('{}'+PURPLE+'rate'+END+': {:0.2f}').format(indent*2,i.rate))
             print(('{}'+PURPLE+'pos'+END+': [{:8.3f} {:8.3f} {:8.3f} ]').format(indent*2,*i.pos))
             print(('{}'+PURPLE+'rpy'+END+': [{:8.3f} {:8.3f} {:8.3f} ](deg)').format(indent*2,*i.rot.as_euler('xyz',degrees=True)))
-            print(('{}'+PURPLE+'gyro_noise'+END+': {:8.5f}  '+PURPLE+'gyro_bias'+END+': {:8.5f}').format(indent*2, i.gyro_noise,i.gyro_bias))
-            print(('{}'+PURPLE+'accel_noise'+END+': {:8.5f}  '+PURPLE+'accel_bias'+END+': {:8.5f}\n').format(indent*2, i.accel_noise,i.accel_bias))
+            print(('{}'+PURPLE+'gyro_noise_density'+END+': {:8.5f}  '+PURPLE+'gyro_random_walk'+END+': {:8.5f}').format(indent*2, i.gyro_noise_density,i.gyro_random_walk))
+            print(('{}'+PURPLE+'accel_noise_density'+END+': {:8.5f}  '+PURPLE+'accel_random_walk'+END+': {:8.5f}\n').format(indent*2, i.accel_noise_density,i.accel_random_walk))
         for b in body_frames:
             _id = b.id+' [BASE FRAME]' if b.id==p.base_frame else b.id
             print(('{}'+YELLOW+'{}'+END+' (body frame) ')

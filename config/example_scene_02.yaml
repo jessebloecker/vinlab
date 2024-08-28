@@ -1,0 +1,31 @@
+trajectory_group:
+    reference: MH_01_sample
+    trajectories:
+      - id: MH_01_sample
+        file:
+          path: data/MH_01_sample.csv
+          format: 'x y z qx qy qz qw'
+      - id: interpolation
+        bspline_interpolate_subsample:
+          subsample: 10
+          source_trajectory: MH_01_sample
+          degree: 5
+          span_time: 1
+          res: 50
+
+platform:
+  id: 'mono'
+  base_frame: 'imu0'
+  sensors:
+    - id: 'imu0'
+      enable_measurements: true
+      rate: 100
+      transform:
+        rotation: [0,0,0]
+        translation: [0,0,0]
+      imu:
+        gyro_noise_density: 0.001
+        gyro_random_walk: 0.0001
+        accel_noise_density: 0.01
+        accel_random_walk: 0.001
+      time_offset: 0.0

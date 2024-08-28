@@ -20,7 +20,7 @@ from scipy.spatial.transform import Rotation
 from geometry_utils import linear_interp
 from color_helper import ColorHelper
 from std_msgs.msg   import *
-import tkinter as tk
+
 
 np.set_printoptions(threshold=sys.maxsize,suppress=True,precision=3,linewidth=100)
 
@@ -99,6 +99,7 @@ class SceneViewer(Node):
         publishers['control_points']= {'ref':  self.create_publisher(Marker,'~/ref/control_points',10),
                                        'main': self.create_publisher(Marker,'~/main/control_points',10)}
         publishers['paths'] = {'pos_main': self.create_publisher(Marker,'~/main/pos',10)}
+        publishers['output_config'] = self.create_publisher(String, '~/output_config', 10)
         for i in ('pos','vel','acc', 'angvel', 'angacc'):
             publishers['paths'][i+'_ref'] = self.create_publisher(Path,'~/ref/'+i,10)
         return publishers, subscribers
@@ -152,7 +153,7 @@ class SceneViewer(Node):
         measurements_msg.layout.dim[1].size = meas.shape[1]
         measurements_msg.layout.dim[1].stride = meas.shape[1]
         measurements_msg.data = meas.flatten().tolist()
-        messages['feature_measurements'] = measurements_msg
+        messages['feature_measurements'] = measurements_msg #todo make this a list of messages for all cameras
 
         feature_colors = features['all'].colors
         # print ('feature_colors',feature_colors)

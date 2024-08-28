@@ -134,3 +134,16 @@ features:
       normal: [0,0,1]
       radius: 8
       grid_spacing: 0.5
+
+output:
+  images: 
+    enable_individual: true
+    enable_combined: true
+    enable_info: true
+  video:
+    enable_individual: true
+    enable_combined: true
+  imu_data:
+    enable: true
+  rosbag2:
+    enable: false
