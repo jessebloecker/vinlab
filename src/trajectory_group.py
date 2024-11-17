@@ -12,6 +12,7 @@ class TrajectoryGroup():
         self.trajectories = trajectories
         self.n = len(trajectories)
         self.error = {}
+        #body frame should be the same for all trajectories, and equal to the platform's base frame
         #time match every trajectory to the reference trajectory
         # self.get_error()
 
@@ -21,7 +22,7 @@ class TrajectoryGroup():
         config = check_keys(config, 'trajectory_group', context='scene')[0]
         reference = config['reference']
         trajectories = {}
-        ct = config['trajectories']
+        ct = config['trajectories'] 
         sub_trajectory_configs = [] #list of 'sub-trajectory' (trajectory dependent on another trajectory) configs
         for c in ct:
             t = Trajectory.config(c)
@@ -47,7 +48,7 @@ class TrajectoryGroup():
                 trajectories[_id] = sub_traj #finally add the sub-trajectory to the trajectory group
         
         if not reference in trajectories.keys():
-            raise ConfigurationError('reference trajectory id: \'{}\' does not match any trajectory id in the trajectory group'.format(reference))
+            raise ConfigurationError('reference trajectory id: \'{}\' does not match any trajectory id in the trajectory group. Existing ids are: {}'.format(reference, ','.join(trajectories.keys())))
 
         if 'main' in config.keys():
             main = config['main']

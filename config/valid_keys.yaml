@@ -82,9 +82,9 @@ camera:
   - context: sensor
     description: "description of camera sensor"
     subkeys:
-      required: [height, width, intrinsics]
-      required_exclusive: []
-      optional: [distortion]
+      required: [height, width]
+      required_exclusive: [intrinsics, fov]
+      optional: [distortion, noise_std_dev]
       codependent: []
 
 center:
@@ -145,7 +145,7 @@ feature:
     subkeys:
       required: [id]
       required_exclusive: [points, random_points, planar_points]
-      optional: [color]
+      optional: [color, frame]
       codependent: []
     
 features:
@@ -179,6 +179,10 @@ format:
                   example: 't x y z qx qy qz qw' 
                   separated by spaces or comma according to file, 
                   use dashes to indicate columns to ignore, e.g. 't,x,y,z,-,-,-,qx,qy,qz,qw' "
+fov:
+  - context: camera
+    description: "field of view in degrees of the camera images to generate"
+
 from:
   - context: transform
     description: "name of the parent frame, relative to which to define the transform"
@@ -254,6 +258,10 @@ negate:
 normal:
   - context: planar_points
     description: "normal vector of the plane"
+
+noise_std_dev:
+  - context: camera
+    description: "standard deviation in pixels of zero-mean gaussian noise to add to the feature image points"
 
 num:
   - context: planar_points
@@ -364,7 +372,7 @@ scene:
     subkeys: 
       required: [trajectory_group, platform]
       required_exclusive: []
-      optional: [features, output]
+      optional: [static_frames, features, output]
       codependent: []
 
 sensor:
@@ -391,6 +399,19 @@ source_trajectory:
 span_time:
   - context: bspline
     description: "time in seconds to traverse a single span of the bspline curve"
+
+static_frame:
+  - context: scene
+    description: "static frame from which trajectories or features may be defined"
+    subkeys:
+      required: [id, transform]
+      required_exclusive: []
+      optional: []
+      codependent: []
+    
+static_frames:
+  - context: scene
+    description: "list of static frames"
 
 subsample_interpolate:
   - context: trajectory
@@ -419,8 +440,7 @@ trajectory:
     subkeys:
       required: [id]
       required_exclusive: [file, translation_trajectory, rotation_trajectory, subsample_interpolate, copy]
-      optional: []
-      optional: []
+      optional: [index_range, frame]
       codependent:
         - [translation_trajectory, rotation_trajectory]
 
@@ -430,7 +450,7 @@ trajectory_group:
     subkeys:
       required: [reference, trajectories]
       required_exclusive: []
-      optional: [main]
+      optional: [main, frame]
       codependent: []
 
 transform:

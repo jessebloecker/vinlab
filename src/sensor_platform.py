@@ -92,6 +92,7 @@ class Sensor():
         self.id = sensor_id
         self.enable_measurements = enable_measurements
         self.rate = float(rate)
+        self.dt = 1./rate if rate > 0 else 0
         self.pos = np.array([0.,0.,0.]) if pos is None else pos
         self.rot = Rotation.from_matrix(np.eye(3)) if rot is None else rot
         self.resolve_transform_from = resolve_transform_from
@@ -104,9 +105,14 @@ class Sensor():
 
         if 'transform' in config.keys():
             rot, pos, _from = config_transform(config.pop('transform'))
-        config['rot'] = rot #replace with rotation object
-        config['pos'] = pos #replace with the array
-        config['resolve_transform_from'] = _from
+            config['rot'] = rot #replace with rotation object
+            config['pos'] = pos #replace with the array
+            config['resolve_transform_from'] = _from
+        else:
+            #this is bad...should restrucutre camera and imu initialization
+            config['rot'] = Rotation.from_matrix(np.eye(3))
+            config['pos'] = np.zeros(3)
+            config['resolve_transform_from'] = None
 
         if config_mode == {'camera'}:
             return Camera.config(config)
@@ -118,14 +124,21 @@ class Camera(Sensor):
     """
     Pinhole camera model with z-axis aligned with optical axis
     """
-    def __init__(self, sensor_id, enable_measurements, rate, rot, pos, resolve_transform_from, time_offset, height, width, intrinsics, distortion=None):
+    def __init__(self, sensor_id, enable_measurements, rate, rot, pos, resolve_transform_from, time_offset, height, width, intrinsics=None, fov=None, distortion=None, noise_std_dev=0.0):
         super().__init__(sensor_id, enable_measurements, rate, rot, pos, resolve_transform_from)
-        self.type= 'camera'
+        self.type = 'camera'
         self.width = int(width)
         self.height = int(height)
-        fx,fy,cx,cy = np.array(intrinsics).astype(np.float32)
-        self.K = np.array([[fx,0,cx],[0,fy,cy],[0,0,1]])
+        if intrinsics:
+            fx,fy,cx,cy = np.array(intrinsics).astype(np.float32)
+        elif fov:
+            fx = fy = 0.5*width/(np.tan(np.deg2rad(fov)/2))
+            cx = width/2
+            cy = height/2
+        self.K = np.array([[fx,0,cx],[0,fy,cy],[0,0,1]]) #should change this to 'intrinsics'
+        self.intrinsics = self.K
         self.distortion = np.array(distortion) if distortion is not None else None
+        self.noise_std_dev = float(noise_std_dev)
 
     @classmethod
     def config(cls, config):
@@ -153,13 +166,13 @@ class Imu(Sensor):
     """
     Imu object
     """
-    def __init__(self, sensor_id, enable_measurements, rate, rot, pos, resolve_transform_from, time_offset, gyro_noise=0.01, gyro_bias=0.01, accel_noise=0.01, accel_bias=0.01):
+    def __init__(self, sensor_id, enable_measurements, rate, rot, pos, resolve_transform_from, time_offset, gyro_noise_density=0.01, gyro_random_walk=0.01, accel_noise_density=0.01, accel_random_walk=0.01):
         super().__init__(sensor_id, enable_measurements, rate, rot, pos, resolve_transform_from)
         self.type = 'imu'
-        self.gyro_noise = float(gyro_noise)
-        self.gyro_bias = float(gyro_bias)
-        self.accel_noise = float(accel_noise)
-        self.accel_bias = float(accel_bias)
+        self.gyro_noise_density = float(gyro_noise_density)
+        self.gyro_random_walk = float(gyro_random_walk)
+        self.accel_noise_density = float(accel_noise_density)
+        self.accel_random_walk = float(accel_random_walk)
 
     @classmethod
     def config(cls, config):

@@ -28,9 +28,9 @@ class RotationTrajectory():
         self.angacc = RowVectorArray(angacc)
         self.body_angacc = RowVectorArray((R.swapaxes(1,2)@angacc.reshape(n,3,1)).reshape(n,3))
         
-        self.n = n
+        self.num = n
         self.dur = _dur
-        self.t = _t
+        self.times = _t
         self.dt = dt
         self.rate = 1./dt
 
@@ -51,7 +51,7 @@ class RotationTrajectory():
     
     @classmethod
     def config(cls,config):
-        config, config_mode  = check_keys(config, 'rotation', context='trajectory')
+        config, config_mode  = check_keys(config, 'rotation_trajectory', context='trajectory')
         if config_mode == 'bspline_so3':
             raise NotImplementedError
         elif config_mode == {'align_axis'}:

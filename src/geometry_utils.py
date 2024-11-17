@@ -204,4 +204,37 @@ def linear_interp_so3(a,b,n):
     compute linear interpolation with 'n' steps from rotation matrix 'a' to rotation matrix 'b', including 'a' and 'b'
     returns: array of shape (n,3,3)
     """
+    # R[i+1] = R[i]@expm(utils.skew(wm[i])*dt)
     pass
+
+
+def get_point_positions(pos, rot, points): #should exist somewhere else probably
+    n = len(pos) #number of poses
+    m = len(points) #number of features
+
+    gPgf = points # m x 3
+    gPgc = pos # n x 3
+    gRc  = rot.as_matrix() # n x 3 x 3
+
+    assert gPgf.shape == (m,3)
+    assert gPgc.shape == (n,3)
+
+    #reshape for broadcasting
+    gPgf = gPgf.reshape(1,m,3).swapaxes(1,2)
+    gPgc = gPgc.reshape(n,3,1) 
+    assert gPgf.shape == (1,3,m)
+    assert gPgc.shape == (n,3,1)
+
+    cRg = gRc.swapaxes(1,2) # n x 3 x 3 (transpose each rotation matrix)
+    assert cRg.shape == (n,3,3)
+
+    cPcg = (-cRg@gPgc).swapaxes(1,2) # n x 3 x 3 @ n x 3 x 1 = n x 3 x 1 -> swapaxes -> n x 1 x 3
+    assert cPcg.shape == (n,1,3)
+
+    cPgf = (cRg@gPgf).swapaxes(1,2) # n x 3 x 3 @ 1 x 3 x m = n x 3 x m -> swapaxes -> n x m x 3
+    assert cPgf.shape == (n,m,3)
+
+    cPcf = cPcg + cPgf # n x m x 3 + n x 1 x 3 = n x m x 3
+    assert cPcf.shape == (n,m,3)
+
+    return cPcf

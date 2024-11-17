@@ -8,11 +8,12 @@ import logging
 from config_utils import check_keys, ConfigurationError
 
 class Feature():
-    def __init__(self, feature_id, feature_type, frame_id='global', color=None):
+    def __init__(self, feature_id, feature_type, frame='global', color=None):
         self.id = feature_id
         self.type = feature_type
-        self.frame_id = frame_id
+        self.frame = frame
         self.color = color
+
 
     @classmethod
     def config(cls, config):
@@ -35,9 +36,9 @@ class Feature():
             raise NotImplementedError('plane configuration not implemented')
 
 class PointSet(Feature):
-    def __init__(self, points, colors=None, **kwargs): #kwargs: feature_id, feature_type, frame_id='global', color=None
+    def __init__(self, points, colors=None, **kwargs): #kwargs: feature_id, feature_type, frame='global', color=None
         super().__init__(**kwargs)
-        self.points = {self.frame_id : points}
+        self.points = {self.frame : points}
         n = len(points)
         if colors is None: #if array of colors is not provided
             color = self.color #apply the uniform color to all points
@@ -60,10 +61,20 @@ class PointSet(Feature):
         points = np.array(config.pop('points')).astype(np.float32)
         return cls(points, **config)
     
+    def add_get_id_range(self, id_range):
+        """
+        return the range of id values coresponding to the name of the group
+        e.g. plane1: ids: 0-400
+             plane2: ids: 401-800
+             points1: ids: 801-1000
+        Then use this to mask out the ids in the measurements
+        """
+        pass
+    
 
 class PlanarPointSet(PointSet):
     def __init__(self, center, normal, radius, **kwargs): 
-        super().__init__(**kwargs)  #kwargs: points,color, feature_id, feature_type, frame_id='global'
+        super().__init__(**kwargs)  #kwargs: points,color, feature_id, feature_type, frame='global'
         self.center = center
         self.normal = normal
         self.radius = radius

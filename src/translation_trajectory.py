@@ -19,14 +19,14 @@ class TranslationTrajectory():
         _vel = numerical_vel if (vel is None) else vel
         _acc = numerical_acc if (acc is None) else acc
 
-        self.pos = RowVectorArray(pos)
+        self.pos = RowVectorArray(pos) #should be a dictionary...or should the whole trajectory be a dictionary?
         self.vel = RowVectorArray(_vel)
         self.acc = RowVectorArray(_acc)
         self.numerical_vel = RowVectorArray(numerical_vel)
         self.numerical_acc = RowVectorArray(numerical_acc)
         self.n = n
         self.dur = _dur
-        self.t = _t
+        self.times = _t
         self.dt = dt
         self.rate = 1./dt
         self.type = trajectory_type
@@ -34,7 +34,7 @@ class TranslationTrajectory():
 
     @classmethod
     def config(cls,config):
-        config, config_mode  = check_keys(config, 'translation', context='trajectory')
+        config, config_mode  = check_keys(config, 'translation_trajectory', context='trajectory')
         
         if config_mode == {'bspline'}:
             return BSpline.config(config['bspline'])
@@ -96,6 +96,7 @@ class BSpline(TranslationTrajectory):
         compute uniform bspline and its derivatives
         """
         control_points = self.control_points
+        # control_points[:,2] -=100
         core = self.core
         span_time = self.span_time
         geometric_only = self.geometric_only
@@ -138,7 +139,7 @@ class BSpline(TranslationTrajectory):
     
     @classmethod
     def config(cls,config):
-        config = check_keys(config, 'bspline', context='translation')[0]
+        config = check_keys(config, 'bspline', context='translation_trajectory')[0]
         ctrl_pt_config, ctrl_pt_config_mode = check_keys(config.pop('control_points'), 'control_points', context='bspline')
         if ctrl_pt_config_mode == {'points'}:
             points = np.array(ctrl_pt_config['points']).astype(np.float64)
