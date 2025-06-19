@@ -9,12 +9,13 @@ class SensorPlatform():
     """
     SensorPlatform object - contains all sensors and body frames on a platform
     """
-    def __init__(self, platform_id='platform', base_frame='imu', sensors = {}, body_frames=[]):
+    def __init__(self, platform_id='platform', sensors = None, body_frames=None, base_frame=None):
         self.id = platform_id
         self.base_frame = base_frame
         self.body_frames = body_frames
         self.sensors = sensors
-        self.check_base_frame()
+        if self.sensors or self.body_frames:
+            self.check_base_frame()
         self.resolve_transforms() #resolve all transforms that are not configured with respect to base_frame
 
     def find(self, frame_id):
@@ -27,7 +28,7 @@ class SensorPlatform():
                 # print('k: {} v.id: {} '.format(k,v.id))
                 if v.id == frame_id:
                     return v
-        raise ConfigurationError(self.__class__.__name__+': frame_id: \'{}\' not found on platform \'{}\''.format(frame_id,self.id))
+        raise ConfigurationError('frame_id: \'{}\' not found on platform \'{}\''.format(frame_id,self.id))
         
     def check_base_frame(self):
         base = self.find(self.base_frame)
@@ -49,7 +50,7 @@ class SensorPlatform():
             for k,v in s.items():
                 if v.resolve_transform_from is None:
                     v.resolve_transform_from = base_frame
-                    print(self.__class__.__name__+': \'{}\' transform parent frame not given, setting to base frame \'{}\''.format(v.id,base_frame))
+                    # print(self.__class__.__name__+': \'{}\' transform parent frame not given, setting to base frame \'{}\''.format(v.id,base_frame))
                 if v.resolve_transform_from != base_frame:
                     parent_frame = self.find(v.resolve_transform_from)
                     child_frame = v
@@ -68,7 +69,11 @@ class SensorPlatform():
     def config(cls, config):
         config = check_keys(config, 'platform', context='scene')[0]
         platform_id = config['id']
-        base_frame = config['base_frame']
+    
+        if 'base_frame' not in config.keys():
+            base_frame = platform_id
+            return cls(platform_id, base_frame, sensors, body_frames)
+
 
         sensors={}
         if 'sensors' in config.keys():
@@ -84,8 +89,7 @@ class SensorPlatform():
             for i in range(len(cb)):
                 b = BodyFrame.config(cb[i])
                 body_frames[b.id] = b
-        
-        return cls(platform_id, base_frame, sensors, body_frames)
+        return cls(platform_id, sensors, body_frames, base_frame=config['base_frame'])
 
 class Sensor():
     def __init__(self, sensor_id, enable_measurements=True, rate=0 , rot=None, pos=None, resolve_transform_from=None, time_offset=0.0):
@@ -102,6 +106,8 @@ class Sensor():
     def config(cls,config):
         config, config_mode = check_keys(config, 'sensor', context='sensors')
         config['sensor_id'] = config.pop('id')
+        if not 'time_offset' in config.keys():
+            config['time_offset'] = 0.0
 
         if 'transform' in config.keys():
             rot, pos, _from = config_transform(config.pop('transform'))
@@ -125,7 +131,7 @@ class Camera(Sensor):
     Pinhole camera model with z-axis aligned with optical axis
     """
     def __init__(self, sensor_id, enable_measurements, rate, rot, pos, resolve_transform_from, time_offset, height, width, intrinsics=None, fov=None, distortion=None, noise_std_dev=0.0):
-        super().__init__(sensor_id, enable_measurements, rate, rot, pos, resolve_transform_from)
+        super().__init__(sensor_id, enable_measurements, rate, rot, pos, resolve_transform_from, time_offset)
         self.type = 'camera'
         self.width = int(width)
         self.height = int(height)
@@ -147,19 +153,6 @@ class Camera(Sensor):
             distortion = np.array(cc['distortion']).astype(np.float32) 
             cc['distortion'] = distortion
         return cls(**config,**cc)
-    
-
-    def get_image_lines(self, line):
-        """
-        get_image a line object onto the camera sensor
-        """
-        pass
-
-    def get_image_planes(self, plane):
-        """
-        get_image a plane object onto the camera sensor
-        """
-        pass
 
 
 class Imu(Sensor):
