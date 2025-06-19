@@ -14,6 +14,7 @@ class Trajectory():
     """
     Initialize with TranslationTrajectory and RotationTrajectory objects 
     or from arrays of positions and rotations
+    todo: should be initialized with: frame, platform,  initial (absolute) time, vector of times, translation sequence, rotation sequece
     """
     def __init__(self, translation, rotation, frame='global', body_frame='body', _id='traj', super_id=None, is_reference=False):
         self.id = _id
@@ -23,12 +24,16 @@ class Trajectory():
         self.frame = frame #frame in which each body's traj is expressed
         self.body_frame = body_frame
         # self.body #TODO: dictionary of the translation and rotation trajectories for each rigid body
+        #traj['imu'].translation.vel
         self.translation = translation
         self.rotation = rotation
+        self.initial_time = 0.0
         
         # get values from translation component: TODO: check if only rotation component is provided
         self.dur = translation.dur
-        self.times = translation.times
+        self.initial_time = None #first timestamp in the dataset, in seconds, acccounting for time_offset
+        self.times = translation.times  #always starts at 'time_offset'
+        self.time_offset = self.times[0]
         self.dt = translation.dt
         self.rate = translation.rate
         self.n = translation.n
@@ -41,6 +46,11 @@ class Trajectory():
         self.body_vel = RowVectorArray((R.swapaxes(1,2)@vel.reshape(n,3,1)).reshape(n,3))
         self.body_acc = RowVectorArray((R.swapaxes(1,2)@acc.reshape(n,3,1)).reshape(n,3))
 
+    def index_at_time(self,t):
+        """
+        return the closest index
+        """
+        raise NotImplementedError
         
     def normalize_timestamps(self):
         """
@@ -67,6 +77,7 @@ class Trajectory():
         pos = self.translation.pos.values
         R = self.rotation.rot.as_matrix()
         traj_rate = self.rate
+        
 
         if rate <= 0:
             print(self.__class__.__name__+': downsample rate {:.1f} is <= 0, using trajectory rate {:.1f}'.format(rate,traj_rate))
@@ -93,7 +104,7 @@ class Trajectory():
         #also return corresponding indices in the original trajectory
 
         matcher = ValueMatcher(downsampled_traj.times, self.times, 0.0001)
-        indices = matcher.index_cors[0]
+        indices = matcher.indices[0]
         return downsampled_traj, indices
     
     def transfer(self,rotation,translation):
@@ -119,7 +130,7 @@ class Trajectory():
         R_static = _rot.reshape(1,3,3) #reshape for broadcasting
         pos_static = translation
 
-        #transform each pose
+        #transform each posec
         R_new = R@R_static # (n x 3 x 3) @ (1 x 3 x 3) = n x 3 x 3
         pos_new = pos + np.squeeze(R@pos_static.reshape(1,3,1)) 
        
@@ -132,7 +143,7 @@ class Trajectory():
         """
         R = self.rotation.rot.as_matrix()
         pos = self.translation.pos.values
-        t = self.t
+        t = self.times
 
         _rot = as_scipy_rotation(rotation).as_matrix()
         R_static = _rot
@@ -182,23 +193,22 @@ class Trajectory():
         np.savetxt(path,data,fmt='%0.6f',delimiter=delimiter,header=header)
         
     @classmethod
-    def from_file(cls, path, _format, time_unit, jpl=None, frame='global', body_frame='body', _id='traj', index_range=None):
+    def from_file(cls, path, _format, time_unit, time_offset, jpl=None, frame='global', body_frame='body', _id='traj', index_range=None, delimiter=','):
         """
         load trajectory from text file
         """
-        print('loading trajectory from file: {}'.format(path))
         req = ['t','x','y','z','qx','qy','qz','qw']
-        delimiter = ' ' if ' ' in list( _format) else ','
-        f = [i for i in _format.split(delimiter) if i in req+['_','-']] #format list, filter out invalid characters/extra spaces
+        format_delimiter = ' ' if ' ' in list( _format) else ','
+        f = [i for i in _format.split(format_delimiter) if i in req+['_','-']] #format list, filter out invalid characters/extra spaces
         if len(f) < 8:
             raise ValueError('invalid format string - must contain {}'.format(' '.join(req)))
         time_units = {'s':1,'ms':1e-3,'us':1e-6,'ns':1e-9}
         if time_unit not in time_units.keys():
             raise ValueError('invalid time unit - must be s, ms, us, or ns')
         
-        data = np.loadtxt(path, delimiter=',') 
-        if path=='/home/jesse/ros2_ws/src/vision_altitude_pose/output/vision_altitude_7001-7101_stride_1.csv':
-            print('loaded data from file \n {}'.format(data))
+        data = np.loadtxt(path, delimiter=delimiter, skiprows=1)
+        # if path=='/home/jesse/ros2_ws/src/vision_altitude_pose/output/vision_altitude_7001-7101_stride_1.csv':
+        #     print('loaded data from file \n {}'.format(data))
 
         initial_time = data[0,0]
         if index_range is not None:
@@ -208,9 +218,16 @@ class Trajectory():
             data = data[start:end+1]
         
         n = len(data)
-        t = (data[:,f.index('t')] - initial_time)*time_units[time_unit]
+        t = (data[:,f.index('t')] - initial_time)*time_units[time_unit] + time_offset
+        # t = (data[:,f.index('t')] - initial_time)*time_units[time_unit]  #just pass the time offset to the constructor
         p = data[:,[f.index('x'),f.index('y'),f.index('z')]]
-        q =  data[:,[f.index('qx'),f.index('qy'),f.index('qz'),f.index('qw')]] 
+        try:
+            q =  data[:,[f.index('qx'),f.index('qy'),f.index('qz'),f.index('qw')]] 
+        except:
+            ValueError('quaternion data not found in file, setting all to identity: {}'.format(path))
+            q = np.zeros((n,4))
+            q[:,3] = 1.0
+
         # mask out / ignore all lines that have invalid data
         # quaternions must be unit norm (only condition for now)
         q_valid = (np.abs(np.linalg.norm(q,axis=1)-1.0)<1e-3)
@@ -221,7 +238,7 @@ class Trajectory():
         p = p[q_valid]
         t = t[q_valid]
         n_valid = len(q)
-        print('loaded {} valid samples'.format(n_valid))
+        # print('loaded {} valid samples'.format(n_valid))
 
         if jpl is not None:
             q = q_conjugate(q) if jpl else q
@@ -248,6 +265,17 @@ class Trajectory():
     def config(cls, config):
         config, config_mode = check_keys(config, 'trajectory', context='trajectory_group')
         _id = config['id']
+        frame = config['frame'] if 'frame' in config.keys() else 'global'
+        time_offset = 0.0
+        if 'time_offset' in config.keys():
+            time_offset_config, time_offset_mode = check_keys(config['time_offset'], 'time_offset', context='trajectory')
+            if time_offset_mode == {'value'}:
+                time_offset = time_offset_config['value']
+                print('Trajectory: time_offset set to {} seconds'.format(time_offset))
+            elif time_offset_mode == {'first_motion'}:
+                pass
+
+
         if config_mode=={'translation_trajectory','rotation_trajectory'}:
          
             ct = config['translation_trajectory']
@@ -266,7 +294,7 @@ class Trajectory():
             
             if dependent_rotation:
                 if 'align_axis' in cr.keys():
-                    align_axis_config  = check_keys(cr.pop('align_axis'), 'align_axis', context='rotation')[0]
+                    align_axis_config  = check_keys(cr.pop('align_axis'), 'align_axis', context='rotation_trajectory')[0]
                     vec_config = check_keys(align_axis_config.pop('vec'), 'vec', context='align_axis')[0]
                     if 'current_trajectory' in vec_config:
                         name = vec_config['current_trajectory']
@@ -283,24 +311,39 @@ class Trajectory():
                     rots = rotation_align_axis(**align_axis_config, vec=vec_array)
                     rotation_traj = RotationTrajectory(rots,dur=translation_traj.dur)
                 if 'constant' in cr.keys():
-                    raise NotImplementedError
+                    cc = check_keys(cr.pop('constant'), 'constant', context='rotation_trajectory')[0]
+                    _from = cc['from'] if 'from' in cc.keys() else 'global'
+                    rot = as_scipy_rotation(np.array(cc['rotation']))
+                    q = rot.as_quat()
+                    rots = np.tile(q,(translation_traj.n,1))
+                    if not _from == 'global':
+                        #needs to be configured at the scene level if it's relative to a defined static frame
+                        raise NotImplementedError
+                    rotation_traj = RotationTrajectory(rots, t=translation_traj.times)
+        
 
         elif config_mode=={'file'}:
-            cf = config['file']
+            # cf = config['file']
+            cf = check_keys(config['file'], 'file', context='trajectory')[0]
             # path, fmt, time_unit, jpl, index_range = cf['path'], cf['format'], cf['time_unit'], cf['jpl'], cf['index_range']
-            path, fmt, time_unit, jpl= cf['path'], cf['format'], cf['time_unit'], cf['jpl']
-            if 'frame' in config.keys():
-                frame = config['frame']
+            path, fmt, time_unit, jpl, delimiter = cf['path'], cf['format'], cf['time_unit'], cf['jpl'], cf['delimiter']
+            # print('Loading trajectory from file: {} with Frame set to {} with time offset {} and delimiter: D{}D'.format(path,frame,time_offset, delimiter))
             # return cls.from_file(path, fmt, time_unit, jpl, frame=frame, _id=_id,index_range=index_range)
-            return cls.from_file(path, fmt, time_unit, jpl, frame=frame, _id=_id)
+            return cls.from_file(path, fmt, time_unit, time_offset, jpl, frame=frame, _id=_id, delimiter=delimiter)
         
         elif config_mode=={'downsample_interpolate'}:
                 config_mode, options, config = check_keys('downsample_interpolate',config.keys())
                 #depends on another existing trajectory: construct empty trajectory with super_id
                 return config
-        
-        if 'modify' in config.keys():
-            raise NotImplementedError
+
+        if 'scale' in config.keys():
+            scale_x, scale_y, scale_z = config['scale']
+            scaled_pos = translation_traj.pos.values * np.array([scale_x,scale_y,scale_z])
+            translation_traj = TranslationTrajectory(scaled_pos, t=translation_traj.times)
+        if 'shift' in config.keys():
+            shift_x, shift_y, shift_z = config['shift']
+            shifted_pos = translation_traj.pos.values + np.array([shift_x,shift_y,shift_z])
+            translation_traj = TranslationTrajectory(shifted_pos, t=translation_traj.times)
         return cls(translation_traj,rotation_traj, _id=_id)
     
     
